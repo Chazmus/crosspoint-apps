@@ -1,0 +1,7 @@
+{
+  "id": "counter",
+  "title": "Tally Counter",
+  "description": "Touch counter with persistence and sleep screen",
+  "icon": "Blocks",
+  "sleepScreen": true
+}
