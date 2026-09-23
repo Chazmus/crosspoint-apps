@@ -3,11 +3,15 @@
 local count = 0
 local dataFile = "count.txt"
 
-function onEnter()
+local function loadCount()
     local saved = storage.readFile(dataFile)
     if saved and saved ~= "" then
         count = tonumber(saved) or 0
     end
+end
+
+function onEnter()
+    loadCount()
 end
 
 local function saveCount()
@@ -121,6 +125,7 @@ function onDraw()
 end
 
 function onSleepDraw()
+    loadCount()
     local w = gfx.getWidth()
     local h = gfx.getHeight()
 
