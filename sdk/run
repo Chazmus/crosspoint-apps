@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+SIM_DIR="${SCRIPT_DIR}/simulator"
+BUILD_DIR="${SIM_DIR}/build"
+BIN="${BUILD_DIR}/crosspoint-sim"
+
+if [ $# -eq 0 ]; then
+  echo "CrossPoint Lua App Simulator Runner"
+  echo "Usage: $0 [options] <path_to_app_dir>"
+  echo "Example: $0 apps/counter"
+  echo "         $0 apps/chess"
+  echo "Options:"
+  echo "  -p, --portrait                Force Portrait orientation (480x800)"
+  echo "  -l, --landscape               Force Landscape orientation (800x480)"
+  echo "  --screenshot <out.bmp>        Render app initial frame and save BMP"
+  echo "  --screenshot-sleep <out.bmp>  Render app sleep screen and save BMP"
+  exit 1
+fi
+
+mkdir -p "$BUILD_DIR"
+if [ ! -f "$BUILD_DIR/Makefile" ] && [ ! -f "$BUILD_DIR/build.ninja" ]; then
+  echo "[SDK] Configuring CMake for Simulator..."
+  cmake -B "$BUILD_DIR" -S "$SIM_DIR"
+fi
+
+cmake --build "$BUILD_DIR" -j"$(nproc)"
+
+# Resolve relative app paths against repo root if needed
+ARGS=()
+for arg in "$@"; do
+  if [ -d "$arg" ] && [ -f "$arg/main.lua" ]; then
+    ARGS+=("$(cd "$arg" && pwd)")
+  elif [ -d "${REPO_ROOT}/$arg" ] && [ -f "${REPO_ROOT}/$arg/main.lua" ]; then
+    ARGS+=("${REPO_ROOT}/$arg")
+  else
+    ARGS+=("$arg")
+  fi
+done
+
+echo "[SDK] Launching CrossPoint Simulator..."
+exec "$BIN" "${ARGS[@]}"

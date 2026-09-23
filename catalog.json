@@ -1,12 +1,12 @@
 {
   "name": "CrossPoint Official Apps",
   "description": "Curated community Lua applications for CrossPoint reader",
-  "version": 1,
+  "version": 2,
   "apps": [
     {
       "id": "chess",
       "name": "Daily Chess",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": "Chazmus",
       "description": "Daily tactical chess puzzles from Lichess",
       "icon": "Blocks",
@@ -22,7 +22,7 @@
     {
       "id": "counter",
       "name": "Tally Counter",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "author": "CrossPoint",
       "description": "Simple touch/button counter with sleep screen integration",
       "icon": "Blocks",

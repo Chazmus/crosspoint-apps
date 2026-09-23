@@ -7,3 +7,8 @@ Thumbs.db
 .idea/
 *.swp
 *.bak
+
+# SDK Simulator build & runtime artifacts
+sdk/simulator/build/
+.storage/
+*.bmp
