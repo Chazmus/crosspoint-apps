@@ -22,7 +22,7 @@
     {
       "id": "counter",
       "name": "Tally Counter",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": "CrossPoint",
       "description": "Simple touch/button counter with sleep screen integration",
       "icon": "Blocks",
