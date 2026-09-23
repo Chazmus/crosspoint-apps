@@ -54,10 +54,10 @@ function onTouch(x, y)
 end
 
 function onInput(button, isDown)
-    if button == input.BTN_UP or button == input.BTN_CONFIRM or button == input.BTN_PAGE_FORWARD then
+    if button == input.BTN_UP or button == input.BTN_CONFIRM then
         count = count + 1
         saveCount()
-    elseif button == input.BTN_DOWN or button == input.BTN_PAGE_BACK then
+    elseif button == input.BTN_DOWN then
         count = count - 1
         saveCount()
     end
