@@ -4,6 +4,6 @@
   "description": "Daily chess puzzles in Lua with offline caching",
   "icon": "Blocks",
   "orientation": "landscape",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "sleepScreen": true
 }

@@ -1,4 +1,5 @@
 -- Chess Daily Puzzle Lua Application for CrossPoint Reader
+-- Features: Lichess daily puzzle, move validation, opponent reply, hint, reset, sleep screen
 
 local pieces = {}
 local json = nil
@@ -7,13 +8,14 @@ local json = nil
 local board = {}
 local selectedSq = -1
 local hintSq = -1
-local statusMsg = "Welcome to Chess Puzzles"
+local statusMsg = "Daily Puzzle - Loading..."
 local puzzleRating = 1500
 local puzzleThemes = "tactics"
 local solution = {}
 local moveIndex = 1
 local isPlayerWhite = true
 local isSolved = false
+local initialFen = ""
 
 local function initModules()
     if not json then
@@ -82,6 +84,13 @@ local function loadFen(fen)
             end
         end
     end
+
+    -- Determine player turn from FEN active color
+    if parts[2] == "b" then
+        isPlayerWhite = false
+    else
+        isPlayerWhite = true
+    end
 end
 
 local function applyMove(moveStr)
@@ -91,14 +100,48 @@ local function applyMove(moveStr)
     if fromSq < 0 or toSq < 0 then return false end
 
     local piece = board[fromSq]
+    if not piece or piece == "." then return false end
+
+    -- Castling Rook moves
+    if piece == "K" and fromSq == 4 then
+        if toSq == 6 then
+            board[5] = board[7]
+            board[7] = "."
+        elseif toSq == 2 then
+            board[3] = board[0]
+            board[0] = "."
+        end
+    elseif piece == "k" and fromSq == 60 then
+        if toSq == 62 then
+            board[61] = board[63]
+            board[63] = "."
+        elseif toSq == 58 then
+            board[59] = board[56]
+            board[56] = "."
+        end
+    end
+
+    -- En passant capture
+    local fromFile, fromRank = squareToFileRank(fromSq)
+    local toFile, toRank = squareToFileRank(toSq)
+    if (piece == "P" or piece == "p") and fromFile ~= toFile and board[toSq] == "." then
+        if piece == "P" then
+            board[toSq - 8] = "."
+        else
+            board[toSq + 8] = "."
+        end
+    end
+
     board[fromSq] = "."
-    -- Handle pawn promotion if move has 5 characters (e.g. e7e8q)
+
+    -- Pawn promotion
     if #moveStr >= 5 then
         local prom = moveStr:sub(5, 5)
         board[toSq] = (piece == piece:upper()) and prom:upper() or prom:lower()
     else
         board[toSq] = piece
     end
+
     return true
 end
 
@@ -106,8 +149,13 @@ local function loadPuzzle()
     initModules()
     local data = storage.readFile("daily.json")
     if not data or not json then
-        loadFen("r1bqkb1r/pppp1ppp/2n5/4p3/2B1n3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 5")
-        statusMsg = "Sample puzzle loaded"
+        initialFen = "r1bqkb1r/pppp1ppp/2n5/4p3/2B1n3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 5"
+        loadFen(initialFen)
+        solution = {"d2d4"}
+        moveIndex = 1
+        puzzleRating = 1500
+        puzzleThemes = "tactics"
+        statusMsg = "Sample puzzle loaded. White to move"
         return
     end
 
@@ -119,15 +167,165 @@ local function loadPuzzle()
         moveIndex = 1
         isSolved = false
 
-        -- Set starting position
-        loadFen("8/8/1K6/1k6/1P6/8/8/8 w - - 0 1")
+        if parsed.puzzle.fen and parsed.puzzle.fen ~= "" then
+            initialFen = parsed.puzzle.fen
+        else
+            initialFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+        end
+
+        loadFen(initialFen)
 
         if #solution > 0 then
-            statusMsg = "Daily Puzzle (" .. tostring(puzzleRating) .. ") - Your turn!"
+            statusMsg = isPlayerWhite and "White to move - Find the best move!" or "Black to move - Find the best move!"
+        else
+            statusMsg = "Puzzle loaded - Free play"
         end
     else
-        loadFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+        initialFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+        loadFen(initialFen)
+        statusMsg = "Standard board loaded"
     end
+end
+
+local function resetPuzzle()
+    if initialFen and initialFen ~= "" then
+        loadFen(initialFen)
+        moveIndex = 1
+        selectedSq = -1
+        hintSq = -1
+        isSolved = false
+        statusMsg = isPlayerWhite and "Puzzle reset. White to move" or "Puzzle reset. Black to move"
+        crosspoint.requestUpdate()
+    end
+end
+
+local function showHint()
+    if isSolved or moveIndex > #solution then return end
+    local nextMove = solution[moveIndex]
+    if nextMove and #nextMove >= 2 then
+        hintSq = notationToSquare(nextMove:sub(1, 2))
+        statusMsg = "Hint: move the highlighted piece"
+        crosspoint.requestUpdate()
+    end
+end
+
+local function fetchDaily()
+    if not crosspoint.isWifiConnected() then
+        statusMsg = "Wi-Fi disconnected. Connect in Settings."
+        crosspoint.requestUpdate()
+        return
+    end
+
+    statusMsg = "Downloading daily puzzle..."
+    crosspoint.requestUpdate()
+
+    local online = crosspoint.httpGet("https://lichess.org/api/puzzle/daily")
+    if online and online ~= "" then
+        storage.writeFile("daily.json", online)
+        loadPuzzle()
+        statusMsg = "New puzzle loaded! " .. (isPlayerWhite and "White" or "Black") .. " to move"
+    else
+        statusMsg = "Failed to download puzzle"
+    end
+    crosspoint.requestUpdate()
+end
+
+local function toggleSleep()
+    local current = crosspoint.getSleepApp()
+    if current == "chess" then
+        crosspoint.clearSleepApp()
+        statusMsg = "Sleep screen: Default"
+    else
+        crosspoint.setSleepApp("chess")
+        statusMsg = "Sleep screen set to Chess!"
+    end
+    crosspoint.requestUpdate()
+end
+
+local function isWhitePiece(p)
+    return p ~= nil and p ~= "." and p:match("[PNBRQK]") ~= nil
+end
+
+local function isBlackPiece(p)
+    return p ~= nil and p ~= "." and p:match("[pnbrqk]") ~= nil
+end
+
+local function isOwnPiece(p)
+    if isPlayerWhite then
+        return isWhitePiece(p)
+    else
+        return isBlackPiece(p)
+    end
+end
+
+local function handleSquareSelected(sq)
+    if isSolved or sq < 0 or sq > 63 then return end
+
+    local p = board[sq]
+
+    -- Case 1: No piece currently selected
+    if selectedSq == -1 then
+        if isOwnPiece(p) then
+            selectedSq = sq
+            hintSq = -1
+            crosspoint.requestUpdate()
+        end
+        return
+    end
+
+    -- Case 2: Tapped the already-selected square: deselect
+    if sq == selectedSq then
+        selectedSq = -1
+        crosspoint.requestUpdate()
+        return
+    end
+
+    -- Case 3: Tapped another piece of own color: switch selection
+    if isOwnPiece(p) then
+        selectedSq = sq
+        hintSq = -1
+        crosspoint.requestUpdate()
+        return
+    end
+
+    -- Case 4: Attempting move from selectedSq to sq
+    local uci = squareToNotation(selectedSq) .. squareToNotation(sq)
+    local fromP = board[selectedSq]
+    local toFile, toRank = squareToFileRank(sq)
+    if fromP == "P" and toRank == 7 then uci = uci .. "q" end
+    if fromP == "p" and toRank == 0 then uci = uci .. "q" end
+
+    selectedSq = -1
+
+    local expected = solution[moveIndex]
+    if expected and uci == expected then
+        -- Correct move!
+        applyMove(uci)
+        moveIndex = moveIndex + 1
+        hintSq = -1
+
+        if moveIndex > #solution then
+            isSolved = true
+            statusMsg = "Puzzle Solved! Excellent!"
+        else
+            -- Opponent response move
+            local oppMove = solution[moveIndex]
+            applyMove(oppMove)
+            moveIndex = moveIndex + 1
+
+            if moveIndex > #solution then
+                isSolved = true
+                statusMsg = "Puzzle Solved!"
+            else
+                statusMsg = "Opponent played " .. oppMove .. ". Your turn!"
+            end
+        end
+    else
+        -- Wrong move! DO NOT MOVE PIECE!
+        statusMsg = "Not the best move. Try again!"
+    end
+
+    crosspoint.requestUpdate()
 end
 
 function onEnter()
@@ -138,114 +336,74 @@ function onTouch(x, y)
     local w = gfx.getWidth()
     local h = gfx.getHeight()
 
-    -- Sleep toggle button (bottom right)
-    local sleepBtnX = w - 170
-    local sleepBtnY = h - 55
-    if x >= sleepBtnX and x <= sleepBtnX + 150 and y >= sleepBtnY and y <= sleepBtnY + 45 then
-        local current = crosspoint.getSleepApp()
-        if current == "chess" then
-            crosspoint.clearSleepApp()
-        else
-            crosspoint.setSleepApp("chess")
-        end
-        crosspoint.requestUpdate()
+    -- Button dimensions
+    local col1X = 445
+    local col2X = 620
+    local btnW = 160
+    local btnH = 44
+    local row1Y = 290
+    local row2Y = 346
+
+    -- Hint button
+    if x >= col1X and x <= col1X + btnW and y >= row1Y and y <= row1Y + btnH then
+        showHint()
         return
     end
 
-    -- Reload / Fetch button (bottom right - 2nd)
-    local fetchBtnX = w - 320
-    local fetchBtnY = h - 55
-    if x >= fetchBtnX and x <= fetchBtnX + 130 and y >= fetchBtnY and y <= fetchBtnY + 45 then
-        if crosspoint.isWifiConnected() then
-            statusMsg = "Fetching daily puzzle from Lichess..."
-            crosspoint.requestUpdate()
-            local online = crosspoint.httpGet("https://lichess.org/api/puzzle/daily")
-            if online and online ~= "" then
-                storage.writeFile("daily.json", online)
-                loadPuzzle()
-                statusMsg = "New puzzle downloaded!"
-            else
-                statusMsg = "Failed to download puzzle"
-            end
-        else
-            statusMsg = "Wi-Fi not connected"
-        end
-        crosspoint.requestUpdate()
+    -- Reset button
+    if x >= col2X and x <= col2X + btnW and y >= row1Y and y <= row1Y + btnH then
+        resetPuzzle()
         return
     end
 
-    -- Check chessboard tap
+    -- Update / Sync button
+    if x >= col1X and x <= col1X + btnW and y >= row2Y and y <= row2Y + btnH then
+        fetchDaily()
+        return
+    end
+
+    -- Sleep toggle button
+    if x >= col2X and x <= col2X + btnW and y >= row2Y and y <= row2Y + btnH then
+        toggleSleep()
+        return
+    end
+
+    -- Chessboard tap detection
     local boardSize = 400
-    local boardX = 20
-    local boardY = 40
+    local boardX = 26
+    local boardY = 50
     local sqSize = boardSize / 8
+    local flipped = not isPlayerWhite
 
     if x >= boardX and x < boardX + boardSize and y >= boardY and y < boardY + boardSize then
         local dispFile = math.floor((x - boardX) / sqSize)
         local dispRank = math.floor((y - boardY) / sqSize)
-        local file = dispFile
-        local rank = 7 - dispRank
+        local file = flipped and (7 - dispFile) or dispFile
+        local rank = flipped and dispRank or (7 - dispRank)
         local sq = rank * 8 + file
-
-        if selectedSq == -1 then
-            if board[sq] ~= "." then
-                selectedSq = sq
-                crosspoint.requestUpdate()
-            end
-        else
-            if sq == selectedSq then
-                selectedSq = -1
-                crosspoint.requestUpdate()
-            else
-                -- Attempt move
-                local moveStr = squareToNotation(selectedSq) .. squareToNotation(sq)
-                selectedSq = -1
-
-                if #solution >= moveIndex and moveStr == solution[moveIndex] then
-                    applyMove(moveStr)
-                    moveIndex = moveIndex + 1
-                    if moveIndex > #solution then
-                        isSolved = true
-                        statusMsg = "Puzzle Solved! Excellent!"
-                    else
-                        -- Opponent response
-                        local reply = solution[moveIndex]
-                        applyMove(reply)
-                        moveIndex = moveIndex + 1
-                        if moveIndex > #solution then
-                            isSolved = true
-                            statusMsg = "Puzzle Solved!"
-                        else
-                            statusMsg = "Correct! Continue..."
-                        end
-                    end
-                else
-                    applyMove(moveStr) -- Free play / demo move
-                    statusMsg = "Move played: " .. moveStr
-                end
-                crosspoint.requestUpdate()
-            end
-        end
+        handleSquareSelected(sq)
+        return
     end
 end
 
 function onInput(button, isDown)
-    if button == input.BTN_CONFIRM then
-        loadPuzzle()
-        crosspoint.requestUpdate()
+    if isDown and button == input.BTN_CONFIRM then
+        resetPuzzle()
     end
 end
 
 local function drawChessBoard(boardX, boardY, boardSize)
     local sqSize = boardSize / 8
-    local pieceOffset = (sqSize - 40) / 2
+    local pieceOffset = math.floor((sqSize - 40) / 2)
+    local flipped = not isPlayerWhite
 
+    -- Outer border
     gfx.drawRect(boardX - 2, boardY - 2, boardSize + 4, boardSize + 4, 2, true)
 
     for rank = 0, 7 do
         for file = 0, 7 do
-            local dispFile = file
-            local dispRank = 7 - rank
+            local dispFile = flipped and (7 - file) or file
+            local dispRank = flipped and rank or (7 - rank)
             local sqX = boardX + dispFile * sqSize
             local sqY = boardY + dispRank * sqSize
             local sq = rank * 8 + file
@@ -257,9 +415,14 @@ local function drawChessBoard(boardX, boardY, boardSize)
                 gfx.fillRect(sqX, sqY, sqSize, sqSize, false)
             end
 
+            -- Hint highlight
+            if sq == hintSq then
+                gfx.drawRect(sqX + 2, sqY + 2, sqSize - 4, sqSize - 4, 3, true)
+            end
+
             -- Selection highlight
             if sq == selectedSq then
-                gfx.drawRect(sqX + 1, sqY + 1, sqSize - 2, sqSize - 2, 3, true)
+                gfx.drawRect(sqX + 1, sqY + 1, sqSize - 2, sqSize - 2, 4, true)
             end
 
             -- Draw piece
@@ -269,6 +432,47 @@ local function drawChessBoard(boardX, boardY, boardSize)
             end
         end
     end
+
+    -- Rank labels (1..8) on left side of board
+    for r = 0, 7 do
+        local dispRank = flipped and r or (7 - r)
+        local lbl = tostring(r + 1)
+        local ly = boardY + dispRank * sqSize + math.floor((sqSize - gfx.getLineHeight(gfx.FONT_SMALL)) / 2)
+        gfx.drawText(gfx.FONT_SMALL, boardX - 16, ly, lbl, true)
+    end
+
+    -- File labels (a..h) below board
+    for f = 0, 7 do
+        local dispFile = flipped and (7 - f) or f
+        local lbl = string.char(97 + f)
+        local lw = gfx.getTextWidth(gfx.FONT_SMALL, lbl)
+        local lx = boardX + dispFile * sqSize + math.floor((sqSize - lw) / 2)
+        gfx.drawText(gfx.FONT_SMALL, lx, boardY + boardSize + 4, lbl, true)
+    end
+end
+
+local function drawButton(x, y, w, h, label, isFilled)
+    local lh = gfx.getLineHeight(gfx.FONT_SMALL)
+    local lw = gfx.getTextWidth(gfx.FONT_SMALL, label)
+    local lx = x + math.floor((w - lw) / 2)
+    local ly = y + math.floor((h - lh) / 2)
+
+    if isFilled then
+        gfx.fillRoundedRect(x, y, w, h, 6, gfx.COLOR_BLACK)
+        gfx.drawText(gfx.FONT_SMALL, lx, ly, label, false)
+    else
+        gfx.drawRoundedRect(x, y, w, h, 6, 2, true)
+        gfx.drawText(gfx.FONT_SMALL, lx, ly, label, true)
+    end
+end
+
+local function truncateText(font, text, maxW)
+    if gfx.getTextWidth(font, text) <= maxW then return text end
+    local str = text
+    while #str > 3 and gfx.getTextWidth(font, str .. "...") > maxW do
+        str = str:sub(1, -2)
+    end
+    return str .. "..."
 end
 
 function onDraw()
@@ -277,42 +481,65 @@ function onDraw()
 
     gfx.clearScreen(1)
 
-    -- Top bar
-    gfx.fillRect(0, 0, w, 32, true)
-    gfx.drawText(gfx.FONT_UI_10, 20, 22, "Chess Puzzles (Lichess)", false)
+    -- Top bar (36px high)
+    gfx.fillRect(0, 0, w, 36, true)
+    local titleText = "Daily Chess Puzzles (Lichess)"
+    local th = gfx.getLineHeight(gfx.FONT_UI_10)
+    local ty = math.floor((36 - th) / 2)
+    gfx.drawText(gfx.FONT_UI_10, 20, ty, titleText, false)
+
+    local turnBadge = isPlayerWhite and "Turn: White" or "Turn: Black"
+    local bw = gfx.getTextWidth(gfx.FONT_UI_10, turnBadge)
+    gfx.drawText(gfx.FONT_UI_10, w - bw - 20, ty, turnBadge, false)
 
     -- Draw Board (400x400)
-    drawChessBoard(20, 42, 400)
+    drawChessBoard(26, 50, 400)
 
     -- Side info panel
-    local panelX = 440
-    gfx.drawText(gfx.FONT_UI_12, panelX, 70, "Daily Tactics", true)
-    gfx.drawLine(panelX, 85, w - 20, 85, 1, true)
+    local panelX = 445
+    local panelW = w - panelX - 20
 
-    gfx.drawText(gfx.FONT_SMALL, panelX, 115, "Rating: " .. tostring(puzzleRating), true)
-    gfx.drawText(gfx.FONT_SMALL, panelX, 140, "Themes: " .. puzzleThemes, true)
+    -- Header
+    gfx.drawText(gfx.FONT_UI_12, panelX, 50, "Daily Tactics", true)
+    gfx.drawLine(panelX, 86, panelX + panelW, 86, 2, true)
+
+    -- Metadata
+    gfx.drawText(gfx.FONT_UI_10, panelX, 98, "Rating: " .. tostring(puzzleRating), true)
+    local turnStr = isPlayerWhite and "White to move" or "Black to move"
+    local tw = gfx.getTextWidth(gfx.FONT_UI_10, turnStr)
+    gfx.drawText(gfx.FONT_UI_10, panelX + panelW - tw, 98, turnStr, true)
+
+    local thmStr = truncateText(gfx.FONT_SMALL, "Themes: " .. puzzleThemes, panelW)
+    gfx.drawText(gfx.FONT_SMALL, panelX, 126, thmStr, true)
 
     -- Status message box
-    gfx.drawRoundedRect(panelX, 170, w - panelX - 20, 60, 6, 2, true)
-    gfx.drawText(gfx.FONT_SMALL, panelX + 10, 205, statusMsg, true)
+    local boxY = 155
+    local boxH = 110
+    gfx.drawRoundedRect(panelX, boxY, panelW, boxH, 8, 2, true)
+    local msgW = gfx.getTextWidth(gfx.FONT_SMALL, statusMsg)
+    local msgH = gfx.getLineHeight(gfx.FONT_SMALL)
+    local msgX = math.max(panelX + 8, panelX + math.floor((panelW - msgW) / 2))
+    local msgY = boxY + math.floor((boxH - msgH) / 2)
+    gfx.drawText(gfx.FONT_SMALL, msgX, msgY, statusMsg, true)
 
-    -- Buttons
-    local fetchBtnX = w - 320
-    local fetchBtnY = h - 55
-    gfx.drawRoundedRect(fetchBtnX, fetchBtnY, 130, 45, 8, 2, true)
-    gfx.drawText(gfx.FONT_SMALL, fetchBtnX + 24, fetchBtnY + 28, "Update", true)
+    -- Touch control buttons
+    local col1X = 445
+    local col2X = 620
+    local btnW = 160
+    local btnH = 44
+    local row1Y = 290
+    local row2Y = 346
 
-    local sleepBtnX = w - 170
-    local sleepBtnY = h - 55
+    drawButton(col1X, row1Y, btnW, btnH, "Hint", false)
+    drawButton(col2X, row1Y, btnW, btnH, "Reset", false)
+    drawButton(col1X, row2Y, btnW, btnH, "Sync Daily", false)
+
     local isSleepActive = (crosspoint.getSleepApp() == "chess")
+    drawButton(col2X, row2Y, btnW, btnH, isSleepActive and "Sleep: ON" or "Set Sleep", isSleepActive)
 
-    if isSleepActive then
-        gfx.fillRoundedRect(sleepBtnX, sleepBtnY, 150, 45, 8, gfx.COLOR_BLACK)
-        gfx.drawText(gfx.FONT_SMALL, sleepBtnX + 28, sleepBtnY + 28, "Sleep: ON", false)
-    else
-        gfx.drawRoundedRect(sleepBtnX, sleepBtnY, 150, 45, 8, 2, true)
-        gfx.drawText(gfx.FONT_SMALL, sleepBtnX + 24, sleepBtnY + 28, "Set Sleep", true)
-    end
+    -- Navigation hints at bottom
+    gfx.drawText(gfx.FONT_SMALL, panelX, 415, "Tap piece to select, tap target to move.", true)
+    gfx.drawText(gfx.FONT_SMALL, panelX, 435, "Use Hint or Reset if you get stuck.", true)
 end
 
 function onSleepDraw()
@@ -323,23 +550,45 @@ function onSleepDraw()
     loadPuzzle()
 
     gfx.clearScreen(1)
-    gfx.fillRect(0, 0, w, 40, true)
-    gfx.drawCenteredText(gfx.FONT_UI_10, 26, "DAILY CHESS PUZZLE", false)
 
-    -- Draw board in center/left
-    local boardSize = 360
-    local boardX = 25
-    local boardY = 60
-    drawChessBoard(boardX, boardY, boardSize)
+    -- Top bar (40px high)
+    gfx.fillRect(0, 0, w, 40, true)
+    local th = gfx.getLineHeight(gfx.FONT_UI_10)
+    local ty = math.floor((40 - th) / 2)
+    gfx.drawCenteredText(gfx.FONT_UI_10, ty, "DAILY CHESS PUZZLE", false)
+
+    -- Draw board
+    drawChessBoard(26, 50, 400)
 
     -- Sleep information panel
-    local infoX = 410
-    gfx.drawText(gfx.FONT_UI_12, infoX, 90, "Daily Tactics", true)
-    gfx.drawLine(infoX, 105, w - 25, 105, 1, true)
+    local panelX = 445
+    local panelW = w - panelX - 20
 
-    gfx.drawText(gfx.FONT_SMALL, infoX, 140, "Rating: " .. tostring(puzzleRating), true)
-    gfx.drawText(gfx.FONT_SMALL, infoX, 170, "Themes: " .. puzzleThemes, true)
-    gfx.drawText(gfx.FONT_SMALL, infoX, 210, "Turn: " .. (isPlayerWhite and "White" or "Black") .. " to play", true)
+    gfx.drawText(gfx.FONT_UI_12, panelX, 55, "Daily Tactics", true)
+    gfx.drawLine(panelX, 90, panelX + panelW, 90, 2, true)
 
-    gfx.drawCenteredText(gfx.FONT_SMALL, h - 25, "Press Power to Wake and Solve", true)
+    gfx.drawText(gfx.FONT_UI_10, panelX, 105, "Rating: " .. tostring(puzzleRating), true)
+    local turnStr = isPlayerWhite and "White to move" or "Black to move"
+    local tw = gfx.getTextWidth(gfx.FONT_UI_10, turnStr)
+    gfx.drawText(gfx.FONT_UI_10, panelX + panelW - tw, 105, turnStr, true)
+
+    local thmStr = truncateText(gfx.FONT_SMALL, "Themes: " .. puzzleThemes, panelW)
+    gfx.drawText(gfx.FONT_SMALL, panelX, 135, thmStr, true)
+
+    -- Objective Card on side panel
+    local cardY = 175
+    local cardH = 100
+    gfx.drawRoundedRect(panelX, cardY, panelW, cardH, 8, 2, true)
+
+    local function drawPanelCentered(font, y, text, color)
+        local tLen = gfx.getTextWidth(font, text)
+        local tx = panelX + math.floor((panelW - tLen) / 2)
+        gfx.drawText(font, tx, y, text, color)
+    end
+
+    drawPanelCentered(gfx.FONT_UI_10, cardY + 22, "Winning Move Sequence", true)
+    drawPanelCentered(gfx.FONT_SMALL, cardY + 54, "Solve when device wakes up!", true)
+
+    -- Footer
+    drawPanelCentered(gfx.FONT_SMALL, 430, "Press Power to Wake and Play", true)
 end
