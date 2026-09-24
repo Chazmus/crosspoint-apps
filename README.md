@@ -269,6 +269,34 @@ CrossPoint firmware streams logging over USB Serial (`115200` baud) via FreeRTOS
 | `crosspoint.getSleepApp()` | *none* | Returns the ID of the currently designated sleep app. |
 | `crosspoint.clearSleepApp()` | *none* | Unsets the sleep screen app, reverting to default cover/screensaver. |
 
+#### On-Demand Wi-Fi & Battery Safety (`withWifi`)
+
+Because E-Ink readers prioritize battery life, Wi-Fi is kept powered down by default. When an application needs to fetch remote data, use **`crosspoint.withWifi(callback)`** to establish a scoped, on-demand connection:
+
+```lua
+crosspoint.withWifi(function(connected)
+    if not connected then
+        log.warn("WIFI", "Wi-Fi connection cancelled or unavailable")
+        return
+    end
+
+    -- Fetch remote data over HTTPS
+    local data = crosspoint.httpGet("https://api.example.com/data.json")
+    if data and data ~= "" then
+        storage.writeFile("cache.json", data)
+    end
+
+    -- No manual disconnect needed! The firmware automatically shuts off
+    -- Wi-Fi as soon as this callback returns or if an error is raised.
+end)
+```
+
+**Guaranteed Lifecycle Safety:**
+- **Auto-Connect**: If known networks exist in the device's Settings, `withWifi` connects in 1–2 seconds with zero user interaction. If unknown, it displays the standard network picker and on-screen keyboard.
+- **Orientation-Aware**: If the app runs in Landscape mode, the reader temporarily switches to Portrait for the Wi-Fi dialogs and restores Landscape when the modal closes.
+- **Automatic `finally` Cleanup**: Even if the callback throws an unhandled Lua error, crashes, or the user presses Back / puts the device to sleep, the firmware's C++ host traps the event and guarantees Wi-Fi is turned off immediately.
+- **Manual Control**: Low-level `crosspoint.connectWifi(cb)` and `crosspoint.disconnectWifi()` are also available for applications that require explicit manual control.
+
 ---
 
 ### Modular Code & `require()`
