@@ -385,6 +385,22 @@ run_test("test_persistence_and_recovery", function()
     assert_true(#state.players == 4, "State recovered to 4 valid players")
     assert_true(state.players[1].life == 40, "Default life restored")
 
+    -- Test JSON where "players" is a number instead of an array (e.g. {"players": 4})
+    storageFiles["gamestate.json"] = '{"players": 4, "startingLife": 40}'
+    ok, err = pcall(loadState)
+    assert_true(ok, "loadState survived numeric players field: " .. tostring(err))
+    assert_true(#state.players == 4, "State recovered from numeric players")
+
+    -- Test JSON where "history" is a number instead of an array
+    storageFiles["gamestate.json"] = '{"history": 0, "players": [{"life": 40}]}'
+    ok, err = pcall(loadState)
+    assert_true(ok, "loadState survived numeric history: " .. tostring(err))
+    ui.modal = "tools"
+    ui.toolsTab = "history"
+    ok, err = pcall(onDraw)
+    assert_true(ok, "onDraw survived numeric history: " .. tostring(err))
+    ui.modal = nil
+
     -- Test empty file
     storageFiles["gamestate.json"] = ""
     ok, err = pcall(loadState)

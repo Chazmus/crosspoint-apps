@@ -27,6 +27,20 @@ local function safeInt(n, def)
     return math.floor(v)
 end
 
+local function safeLen(v)
+    if type(v) == "string" or type(v) == "table" then
+        return #v
+    elseif type(v) == "number" then
+        return #tostring(v)
+    end
+    return 0
+end
+
+local function safeTable(t, def)
+    if type(t) == "table" then return t end
+    return def or {}
+end
+
 -- ---------------------------------------------------------------------------
 -- Color constants & drawing wrappers
 -- ---------------------------------------------------------------------------
@@ -83,7 +97,7 @@ local function drawButton(x, y, w, h, text, font, isBlack, isFilled)
         drawRounded(x, y, w, h, 8, 2, isBlack)
     end
 
-    local tw = (gfx and gfx.getTextWidth and gfx.getTextWidth(font, text)) or (#text * 10)
+    local tw = (gfx and gfx.getTextWidth and gfx.getTextWidth(font, text)) or (safeLen(text) * 10)
     local th = (gfx and gfx.getLineHeight and gfx.getLineHeight(font)) or 16
     if gfx and gfx.drawText then
         gfx.drawText(font, x + math.floor((w - tw) / 2), y + math.floor((h - th) / 2), text, textBlack)
@@ -138,9 +152,9 @@ local function initJson()
 end
 
 local function addHistory(msg)
-    if not state.history then state.history = {} end
+    if type(state.history) ~= "table" then state.history = {} end
     table.insert(state.history, 1, safeText(msg, ""))
-    if #state.history > 30 then
+    if safeLen(state.history) > 30 then
         table.remove(state.history)
     end
 end
@@ -251,7 +265,7 @@ local function loadState()
     end
 
     local data = json.decode(content)
-    if not data or type(data) ~= "table" or not data.players or #data.players == 0 then
+    if not data or type(data) ~= "table" or type(data.players) ~= "table" or safeLen(data.players) == 0 then
         initNewGame(40, 4)
         return
     end
@@ -262,7 +276,7 @@ local function loadState()
     state.initiative = data.initiative and safeInt(data.initiative, 1) or nil
     state.dayNight = safeText(data.dayNight, "none")
     state.selectedPlayer = math.max(1, math.min(state.playerCount, safeInt(data.selectedPlayer, 1)))
-    state.history = (type(data.history) == "table") and data.history or {}
+    state.history = safeTable(data.history, {})
 
     state.players = {}
     for i = 1, 4 do
@@ -372,13 +386,14 @@ local function drawBigNumber(cx, cy, num, digitW, digitH, strokeW, isBlack)
     digitH = math.max(16, safeNum(digitH, 48))
     strokeW = math.max(2, safeNum(strokeW, 6))
 
-    local str = tostring(num)
+    local str = tostring(safeNum(num, 0))
+    local sLen = safeLen(str)
     local spacing = math.max(4, math.floor(digitW * 0.22))
-    local totalW = #str * digitW + (#str - 1) * spacing
+    local totalW = sLen * digitW + math.max(0, sLen - 1) * spacing
     local startX = cx - math.floor(totalW / 2)
     local startY = cy - math.floor(digitH / 2)
 
-    for i = 1, #str do
+    for i = 1, sLen do
         local ch = str:sub(i, i)
         local curX = startX + (i - 1) * (digitW + spacing)
         drawSingleDigit(curX, startY, digitW, digitH, strokeW, ch, isBlack)
@@ -923,15 +938,16 @@ local function drawToolsModal(w, h)
 
         local lineY = logBoxY + 8
         local maxLines = math.floor((logBoxH - 16) / 20)
-        local hList = state.history or {}
-        for i = 1, math.min(#hList, maxLines) do
+        local hList = safeTable(state.history, {})
+        local hLen = safeLen(hList)
+        for i = 1, math.min(hLen, maxLines) do
             local item = safeText(hList[i], "")
             if gfx and gfx.drawText then
                 gfx.drawText(gfx.FONT_SMALL, mx + 32, lineY, item, C_BLACK)
             end
             lineY = lineY + 20
         end
-        if #hList == 0 then
+        if hLen == 0 then
             local emptyMsg = "No events recorded yet."
             local ew = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_SMALL, emptyMsg)) or 60)
             if gfx and gfx.drawText then
@@ -1451,8 +1467,9 @@ function onTouch(x, y)
         local nameBtnW = 110
         local nameBtnX = mx + mw - nameBtnW - 56
         if x >= nameBtnX and x <= nameBtnX + nameBtnW and y >= my + 7 and y <= my + 35 then
-            local list = PRESET_NAMES[p.id] or {"Player " .. p.id}
-            p.nameIdx = (safeInt(p.nameIdx, 1) % #list) + 1
+            local list = safeTable(PRESET_NAMES[p.id], {"Player " .. p.id})
+            local listLen = math.max(1, safeLen(list))
+            p.nameIdx = (safeInt(p.nameIdx, 1) % listLen) + 1
             p.name = list[p.nameIdx] or ("P" .. p.id)
             saveState()
             return

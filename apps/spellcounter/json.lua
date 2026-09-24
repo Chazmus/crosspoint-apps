@@ -14,9 +14,9 @@ local function is_array(t)
     local count = 0
     for _ in pairs(t) do count = count + 1 end
     for i = 1, count do
-        if t[i] == nil then return false end
+        if t[i] == nil then return false, 0 end
     end
-    return true
+    return true, count
 end
 
 function json.encode(val)
@@ -30,9 +30,10 @@ function json.encode(val)
     elseif t == "string" then
         return escape_str(val)
     elseif t == "table" then
-        if is_array(val) then
+        local isArr, arrCount = is_array(val)
+        if isArr then
             local parts = {}
-            for i = 1, #val do
+            for i = 1, arrCount do
                 parts[i] = json.encode(val[i])
             end
             return "[" .. table.concat(parts, ",") .. "]"
@@ -131,9 +132,12 @@ local function parse_value(str, i)
 end
 
 function json.decode(str)
-    if not str or str == "" then return nil end
-    local val, _ = parse_value(str, 1)
-    return val
+    if type(str) ~= "string" or str == "" then return nil end
+    local ok, val = pcall(function()
+        local v, _ = parse_value(str, 1)
+        return v
+    end)
+    if ok then return val else return nil end
 end
 
 return json
