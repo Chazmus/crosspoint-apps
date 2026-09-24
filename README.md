@@ -10,24 +10,13 @@ It also contains the official **CrossPoint Lua SDK & Desktop Simulator** (`sdk/`
 
 ## 📱 Included Applications
 
-### 1. Daily Chess (`apps/chess`)
-- **Category**: Games / Puzzles
-- **Orientation**: Landscape ($800 \times 480$)
-- **Author**: Chazmus
-- **Features**:
-  - Daily tactical chess puzzles fetched dynamically from Lichess over Wi-Fi, with offline local fallback (`daily.json`).
-  - Board rendering with high-contrast piece sprites optimized for 800×480 E-Ink displays.
-  - Full capacitive touch support for piece selection and move execution, move validation against puzzle solution lines, and animated solution feedback.
-  - Sleep screen takeover mode (`onSleepDraw`).
+Each application maintains its own dedicated `README.md` with in-depth gameplay rules, controls, and architecture documentation:
 
-### 2. Tally Counter (`apps/counter`)
-- **Category**: Utilities
-- **Orientation**: Portrait ($480 \times 800$)
-- **Author**: CrossPoint
-- **Features**:
-  - Clean touch- and button-driven tally counter.
-  - Persistent state saved to SD card (`storage.writeFile("count.txt", ...)`).
-  - E-Ink sleep screen takeover (`onSleepDraw`), turning the reader into a persistent, low-power desktop counter display.
+| Application | Path | Category | Orientation | Description | Guide |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Daily Chess** | `apps/chess` | Games / Puzzles | Landscape ($800 \times 480$) | Daily tactical puzzles fetched from Lichess with offline fallback and sleep screen board. | [README](apps/chess/README.md) |
+| **Spell Counter** | `apps/spellcounter` | Games / Utilities | Landscape ($800 \times 480$) | MTG life and counter tracker (1–4 players, commander damage, poison, tools, sleep summary). | [README](apps/spellcounter/README.md) |
+| **Tally Counter** | `apps/counter` | Utilities | Portrait ($480 \times 800$) | Touch and physical button counter with persistent SD storage and sleep screen desk display. | [README](apps/counter/README.md) |
 
 ---
 
@@ -69,6 +58,9 @@ sdk/
 # Headless screenshot generation
 ./sdk/run --screenshot /tmp/counter.bmp apps/counter
 ./sdk/run --screenshot-sleep /tmp/counter_sleep.bmp apps/counter
+
+# Headless performance profiling
+./sdk/run --profile apps/spellcounter
 ```
 
 ### Simulator Hotkeys
@@ -86,6 +78,7 @@ sdk/
 | **`S`** | Toggle Sleep Screen | E-ink sleep screen preview (`onSleepDraw`) |
 | **`R`** | Reload App | Re-executes Lua state and `onEnter()` |
 | **`P`** | Save Screenshot | Writes `screenshot.bmp` |
+| **`T`** | Toggle Profiling | Toggles live frame time and Lua memory logs |
 
 ---
 
@@ -239,6 +232,19 @@ All paths are sandboxed inside the app's directory (`/apps/<app_id>/` on hardwar
 
 ---
 
+### `log` — Serial & Debug Logging
+
+CrossPoint firmware streams logging over USB Serial (`115200` baud) via FreeRTOS `LOG_INF`, `LOG_DBG`, and `LOG_ERR`. In the desktop simulator, logs are formatted with ANSI color output. Safe for all Lua types (strings, numbers, tables, booleans, and nil).
+
+| Function | Parameters | Description |
+| :--- | :--- | :--- |
+| `log.debug([tag], msg)` | `[tag], msg` | Emits a debug level message (`LOG_DBG` on hardware, gray in simulator). |
+| `log.info([tag], msg)` | `[tag], msg` | Emits an informational message (`LOG_INF` on hardware, cyan in simulator). |
+| `log.warn([tag], msg)` | `[tag], msg` | Emits a warning message (`LOG_INF [WARN]` on hardware, yellow in simulator). |
+| `log.error([tag], msg)` | `[tag], msg` | Emits an error level message (`LOG_ERR` on hardware, red in simulator). |
+
+---
+
 ### `crosspoint` — System & Network Utilities
 
 | Function | Parameters | Description |
@@ -246,12 +252,23 @@ All paths are sandboxed inside the app's directory (`/apps/<app_id>/` on hardwar
 | `crosspoint.millis()` | *none* | Returns system uptime in milliseconds. |
 | `crosspoint.requestUpdate()` | *none* | Flags that the screen needs redrawing on the next cycle. |
 | `crosspoint.finish()` | *none* | Gracefully exits the application and returns to CrossPoint. |
-| `crosspoint.log(msg)` | `string` | Emits a log line to device Serial (`LOG_INF`) or simulator stdout. |
+| `crosspoint.log([tag], msg)` | `[tag], msg` | Backwards-compatible alias to `log.info`. |
+| `crosspoint.getMemoryInfo()` | *none* | Returns table with memory metrics: `{ luaMemoryKb = <int>, freeHeapKb = <int>, freePsramKb = <int> }`. |
 | `crosspoint.isWifiConnected()` | *none* | Returns `true` if Wi-Fi is active and connected to an AP. |
 | `crosspoint.httpGet(url)` | `urlString` | Performs an HTTP GET request over Wi-Fi (or libcurl in simulator). Returns response body string. |
 | `crosspoint.setSleepApp(appId)` | `appId` | Designates an app to render the E-Ink sleep screen. |
 | `crosspoint.getSleepApp()` | *none* | Returns the ID of the currently designated sleep app. |
 | `crosspoint.clearSleepApp()` | *none* | Unsets the sleep screen app, reverting to default cover/screensaver. |
+
+---
+
+### Modular Code & `require()`
+
+Applications can be cleanly organized into multiple modules and subdirectories using standard Lua `require("submodule")` or `require("views.grid")`:
+
+- Modules are resolved relative to the app's root folder (`apps/<app_id>/<module>.lua` or `<module>/init.lua`).
+- Loaded modules are automatically cached in `package.loaded`.
+- All module files must be declared in root `catalog.json` under `"files"` so the on-device App Store downloads all dependencies.
 
 ---
 

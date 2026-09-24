@@ -91,7 +91,9 @@ All apps reside under `apps/<app_id>/`:
 apps/<app_id>/
 ├── manifest.json            # Application metadata & capabilities
 ├── main.lua                 # Entry point and lifecycle callbacks
-└── [supporting files]       # Sprites, data files, helper Lua modules
+├── README.md                # Dedicated user & developer guide for this app
+├── test_<app_id>.lua        # Optional standalone unit test suite
+└── [supporting files]       # Views, helpers, sprites, and data files
 ```
 
 ### `manifest.json` Specification
@@ -201,18 +203,31 @@ CrossPoint readers maintain an on-device App Store that synchronizes with `catal
 ### Release & Update Checklist
 
 Whenever an app is created or modified:
-1. **Verify locally**: Test using `./sdk/run` (test interactive touch, buttons, and sleep screen `S`).
-2. **Bump app version**: In `apps/<app_id>/manifest.json`, increment `"version"` (e.g. `"1.0.1"` $\rightarrow$ `"1.0.2"`).
-3. **Update catalog entry**: In `catalog.json`:
+1. **Verify locally**: Test using `./sdk/run` (interactive touch, buttons, and sleep screen `S`).
+2. **Run tests**: If the app includes a unit test script (e.g. `lua apps/<app_id>/test_<app_id>.lua`), execute and verify all tests pass.
+3. **Documentation**: Ensure `apps/<app_id>/README.md` is created or updated to document new features, controls, and architecture.
+4. **Bump app version**: In `apps/<app_id>/manifest.json`, increment `"version"` (e.g. `"1.0.1"` $\rightarrow$ `"1.0.2"`).
+5. **Update catalog entry**: In `catalog.json`:
    - Match the updated `"version"`.
    - Verify all required runtime files are listed in `"files"`.
-4. **Bump root catalog version**: In `catalog.json`, increment `"version"` integer (e.g. `2` $\rightarrow$ `3`).
-5. **Commit and push** to `main` branch after verification.
+6. **Bump root catalog version**: In `catalog.json`, increment `"version"` integer (e.g. `2` $\rightarrow$ `3`).
+7. **Commit and push** to `main` branch after verification.
 
 ---
 
-## Memory & Platform Discipline
+## Testing & Verification Patterns
 
+For non-trivial applications, implement a mock-based test harness (`apps/<app_id>/test_<app_id>.lua`) that tests game state transitions, edge cases, nil safety, and boundary clamps without requiring the SDL2 simulator or physical hardware:
+
+```bash
+lua apps/<app_id>/test_<app_id>.lua
+```
+
+---
+
+## Memory, Concurrency & Platform Discipline
+
+- **Thread-Safe Firmware Execution**: CrossPoint firmware uses FreeRTOS multi-tasking where `FreeInkUI` invokes `onDraw()` from a dedicated `renderTaskLoop` while touch and button events are processed on the main loop task. The firmware synchronizes all Lua state execution with a recursive mutex (`luaMutex_`). Keep `onTouch()`, `onDraw()`, and `onUpdate()` callbacks fast and non-blocking.
 - **PSRAM Allocation**: On physical hardware, all Lua allocations are hosted in 8MB PSRAM (`LuaPsramAlloc.h`). DRAM is preserved for networking and the E-Ink framebuffer.
 - **Garbage Collection**: Do not allocate throwaway tables or concatenate large strings inside `onDraw()` or `onUpdate()`. Pre-allocate state tables and buffer reuse where possible.
 - **32-Bit Float Mantissa Limit**: The firmware builds with `-DLUA_32BITS=1`. Numbers in Lua 5.4 have 24 bits of float mantissa. Integers up to $16,777,216$ are exact; beyond that precision is lost. Font IDs are handled internally via integer pointers.
