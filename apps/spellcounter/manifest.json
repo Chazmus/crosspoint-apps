@@ -1,0 +1,10 @@
+{
+  "id": "spellcounter",
+  "title": "Spell Counter",
+  "description": "MTG life and counter tracker for up to 4 players",
+  "author": "Chazmus",
+  "icon": "Blocks",
+  "orientation": "landscape",
+  "version": "1.0.0",
+  "sleepScreen": true
+}

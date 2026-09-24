@@ -154,7 +154,9 @@ int main(int argc, char* argv[]) {
 
     lua_getglobal(L, "onEnter");
     if (lua_isfunction(L, -1)) {
-      lua_pcall(L, 0, 0, 0);
+      if (lua_pcall(L, 0, 0, 0) != LUA_OK) {
+        std::cerr << "[Lua onEnter Error] " << lua_tostring(L, -1) << std::endl;
+      }
     } else {
       lua_pop(L, 1);
     }
@@ -163,7 +165,9 @@ int main(int argc, char* argv[]) {
     const char* drawFn = screenshotSleep ? "onSleepDraw" : "onDraw";
     lua_getglobal(L, drawFn);
     if (lua_isfunction(L, -1)) {
-      lua_pcall(L, 0, 0, 0);
+      if (lua_pcall(L, 0, 0, 0) != LUA_OK) {
+        std::cerr << "[Lua " << drawFn << " Error] " << lua_tostring(L, -1) << std::endl;
+      }
     } else {
       lua_pop(L, 1);
     }

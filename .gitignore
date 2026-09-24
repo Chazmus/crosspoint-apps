@@ -10,5 +10,5 @@ Thumbs.db
 
 # SDK Simulator build & runtime artifacts
 sdk/simulator/build/
-.storage/
+**/.storage/
 *.bmp
