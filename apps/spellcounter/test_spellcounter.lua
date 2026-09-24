@@ -136,7 +136,16 @@ local function setupMocks()
         clearSleepApp = function() end,
         log = function(msg) end,
     }
+
+    _G.log = {
+        debug = function(tag, msg) end,
+        info = function(tag, msg) end,
+        warn = function(tag, msg) end,
+        error = function(tag, msg) end,
+    }
 end
+
+package.path = "apps/spellcounter/?.lua;apps/spellcounter/?/init.lua;" .. package.path
 
 -- ---------------------------------------------------------------------------
 -- Load App Script

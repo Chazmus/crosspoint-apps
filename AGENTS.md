@@ -48,7 +48,13 @@ The repository includes a pixel-accurate C++/SDL2 desktop simulator for developi
 - **`S`**: Toggle Sleep Screen view (`onSleepDraw()`).
 - **`R`**: Hot-reload Lua state and re-run `onEnter()`.
 - **`P`**: Save `screenshot.bmp` of current frame.
+- **`T`**: Toggle live performance profiling log output (frame execution time and Lua RAM).
 - **Arrows / Enter / Escape / PageUp / PageDown**: Mapped hardware buttons (`input.BTN_*`).
+
+You can also run headless profiling via:
+```bash
+./sdk/run --profile apps/<app_id>
+```
 
 ---
 
@@ -161,11 +167,25 @@ The host runtime calls these global functions in `main.lua`:
 - `storage.remove(path)`: Deletes file.
 - **Sandboxed**: All paths are automatically isolated in `/apps/<app_id>/` on hardware and `apps/<app_id>/.storage/` in the simulator.
 
+### `log` Module (Serial & Debug Logging)
+CrossPoint firmware connects logging directly to hardware serial monitor (`115200` baud via USB CDC).
+- `log.debug([tag], message)`: Emits debug log (`LOG_DBG` on hardware, gray on simulator).
+- `log.info([tag], message)`: Emits info log (`LOG_INF` on hardware, cyan on simulator).
+- `log.warn([tag], message)`: Emits warning log (`LOG_INF` with `[WARN]`, yellow on simulator).
+- `log.error([tag], message)`: Emits error log (`LOG_ERR` on hardware, red on simulator).
+- Safe with all Lua data types: numbers, tables, booleans, and `nil` are stringified automatically without raising errors.
+
+### Modular Code & `require()`
+Apps can split complex logic across multiple files using standard Lua `require("submodule")` or `require("views.grid")`:
+- Modules are resolved relative to the app's root folder (`apps/<app_id>/<module>.lua` or `<module>/init.lua`).
+- Loaded modules are cached automatically in `package.loaded`.
+
 ### `crosspoint` Module
 - `crosspoint.millis()`: Milliseconds since boot.
 - `crosspoint.requestUpdate()`: Flags dirty screen for redraw on next loop.
 - `crosspoint.finish()`: Exits app back to CrossPoint launcher.
-- `crosspoint.log(msg)`: Emits serial log (`LOG_INF`) or stdout.
+- `crosspoint.log([tag], msg)`: Backwards-compatible alias to `log.info`.
+- `crosspoint.getMemoryInfo()`: Returns table with memory metrics: `{ luaMemoryKb = <int>, freeHeapKb = <int>, freePsramKb = <int> }`.
 - `crosspoint.isWifiConnected()`: Returns `true` if connected to Wi-Fi.
 - `crosspoint.httpGet(url)`: Performs HTTP GET over Wi-Fi (or libcurl in simulator).
 - `crosspoint.setSleepApp(appId)`: Registers app for sleep screen takeover.

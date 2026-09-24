@@ -67,6 +67,18 @@ std::string getManifestOrientation(const std::string& appDir) {
   return "portrait";
 }
 
+int luaTraceback(lua_State* L) {
+  const char* msg = lua_tostring(L, 1);
+  if (!msg) {
+    if (luaL_callmeta(L, 1, "__tostring") && lua_type(L, -1) == LUA_TSTRING) {
+      return 1;
+    }
+    msg = "(error object is not a string)";
+  }
+  luaL_traceback(L, L, msg, 1);
+  return 1;
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -74,6 +86,7 @@ int main(int argc, char* argv[]) {
   std::string screenshotPath;
   bool screenshotSleep = false;
   std::string forcedOrientation;
+  bool enableProfiling = false;
 
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
@@ -86,6 +99,8 @@ int main(int argc, char* argv[]) {
       forcedOrientation = "landscape";
     } else if (arg == "--portrait" || arg == "-p") {
       forcedOrientation = "portrait";
+    } else if (arg == "--profile") {
+      enableProfiling = true;
     } else if (arg[0] != '-') {
       appDir = arg;
     }
@@ -97,6 +112,7 @@ int main(int argc, char* argv[]) {
     std::cout << "Options:" << std::endl;
     std::cout << "  -p, --portrait                Run in Portrait mode (480x800)" << std::endl;
     std::cout << "  -l, --landscape               Run in Landscape mode (800x480)" << std::endl;
+    std::cout << "  --profile                     Enable performance profiling logs" << std::endl;
     std::cout << "  --screenshot <out.bmp>        Render app initial frame and save BMP" << std::endl;
     std::cout << "  --screenshot-sleep <out.bmp>  Render app sleep screen and save BMP" << std::endl;
     std::cout << "Example: " << argv[0] << " apps/counter" << std::endl;
@@ -145,31 +161,50 @@ int main(int argc, char* argv[]) {
     std::ifstream file(mainLuaPath, std::ios::binary);
     std::string script((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 
+    const int errIdx = lua_gettop(L) + 1;
+    lua_pushcfunction(L, luaTraceback);
+
     if (luaL_loadbuffer(L, script.data(), script.size(), mainLuaPath.c_str()) != LUA_OK ||
-        lua_pcall(L, 0, 0, 0) != LUA_OK) {
+        lua_pcall(L, 0, 0, errIdx) != LUA_OK) {
       std::cerr << "[Lua Load Error] " << lua_tostring(L, -1) << std::endl;
       lua_close(L);
       return 1;
     }
+    lua_remove(L, errIdx);
 
     lua_getglobal(L, "onEnter");
     if (lua_isfunction(L, -1)) {
-      if (lua_pcall(L, 0, 0, 0) != LUA_OK) {
+      const int enterErrIdx = lua_gettop(L);
+      lua_pushcfunction(L, luaTraceback);
+      lua_insert(L, enterErrIdx);
+      if (lua_pcall(L, 0, 0, enterErrIdx) != LUA_OK) {
         std::cerr << "[Lua onEnter Error] " << lua_tostring(L, -1) << std::endl;
       }
+      lua_remove(L, enterErrIdx);
     } else {
       lua_pop(L, 1);
     }
 
     simRenderer.clearScreen(1);
     const char* drawFn = screenshotSleep ? "onSleepDraw" : "onDraw";
+    const auto drawT0 = std::chrono::steady_clock::now();
     lua_getglobal(L, drawFn);
     if (lua_isfunction(L, -1)) {
-      if (lua_pcall(L, 0, 0, 0) != LUA_OK) {
+      const int drawErrIdx = lua_gettop(L);
+      lua_pushcfunction(L, luaTraceback);
+      lua_insert(L, drawErrIdx);
+      if (lua_pcall(L, 0, 0, drawErrIdx) != LUA_OK) {
         std::cerr << "[Lua " << drawFn << " Error] " << lua_tostring(L, -1) << std::endl;
       }
+      lua_remove(L, drawErrIdx);
     } else {
       lua_pop(L, 1);
+    }
+    const auto drawT1 = std::chrono::steady_clock::now();
+    if (enableProfiling) {
+      const double ms = std::chrono::duration<double, std::milli>(drawT1 - drawT0).count();
+      const int memKb = lua_gc(L, LUA_GCCOUNT, 0);
+      std::cout << "[Profile] " << drawFn << " execution: " << ms << " ms | Lua RAM: " << memKb << " KB" << std::endl;
     }
 
     if (simRenderer.saveBmp(screenshotPath)) {
@@ -180,7 +215,11 @@ int main(int argc, char* argv[]) {
 
     lua_getglobal(L, "onExit");
     if (lua_isfunction(L, -1)) {
-      lua_pcall(L, 0, 0, 0);
+      const int exitErrIdx = lua_gettop(L);
+      lua_pushcfunction(L, luaTraceback);
+      lua_insert(L, exitErrIdx);
+      lua_pcall(L, 0, 0, exitErrIdx);
+      lua_remove(L, exitErrIdx);
     } else {
       lua_pop(L, 1);
     }
@@ -195,7 +234,7 @@ int main(int argc, char* argv[]) {
   }
 
   const std::string appName = fs::path(appDir).filename().string();
-  const std::string windowTitle = "CrossPoint Simulator - " + appName + "  [O: Rotate | S: Sleep | R: Reload | P: Screenshot]";
+  const std::string windowTitle = "CrossPoint Simulator - " + appName + "  [O: Rotate | S: Sleep | R: Reload | P: Screenshot | T: Profile]";
 
   SDL_Window* window = SDL_CreateWindow(windowTitle.c_str(), SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                                         initWidth, initHeight,
@@ -251,18 +290,22 @@ int main(int argc, char* argv[]) {
 
   const auto callLua = [&](const char* fnName) {
     if (!L) return;
+    const int errIdx = lua_gettop(L) + 1;
+    lua_pushcfunction(L, luaTraceback);
     lua_getglobal(L, fnName);
     if (lua_isfunction(L, -1)) {
-      if (lua_pcall(L, 0, 0, 0) != LUA_OK) {
+      if (lua_pcall(L, 0, 0, errIdx) != LUA_OK) {
         std::cerr << "[Lua Error in " << fnName << "] " << lua_tostring(L, -1) << std::endl;
         lua_pop(L, 1);
       }
     } else {
       lua_pop(L, 1);
     }
+    lua_remove(L, errIdx);
   };
 
   const auto redraw = [&]() {
+    const auto t0 = std::chrono::steady_clock::now();
     simRenderer.clearScreen(1);
     if (isSleepPreview) {
       callLua("onSleepDraw");
@@ -273,6 +316,13 @@ int main(int argc, char* argv[]) {
     SDL_RenderClear(sdlRenderer);
     SDL_RenderCopy(sdlRenderer, texture, nullptr, nullptr);
     SDL_RenderPresent(sdlRenderer);
+    const auto t1 = std::chrono::steady_clock::now();
+    if (enableProfiling) {
+      const double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+      const int memKb = L ? lua_gc(L, LUA_GCCOUNT, 0) : 0;
+      std::cout << "[Profile] " << (isSleepPreview ? "onSleepDraw" : "onDraw")
+                << " frame: " << ms << " ms | Lua RAM: " << memKb << " KB" << std::endl;
+    }
   };
 
   const auto applyOrientationChange = [&](int newW, int newH, sim::Orientation newOrient) {
@@ -301,12 +351,17 @@ int main(int argc, char* argv[]) {
     std::ifstream file(mainLuaPath, std::ios::binary);
     std::string script((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 
+    const int errIdx = lua_gettop(L) + 1;
+    lua_pushcfunction(L, luaTraceback);
+
     if (luaL_loadbuffer(L, script.data(), script.size(), mainLuaPath.c_str()) != LUA_OK ||
-        lua_pcall(L, 0, 0, 0) != LUA_OK) {
+        lua_pcall(L, 0, 0, errIdx) != LUA_OK) {
       std::cerr << "[Lua Load Error] " << lua_tostring(L, -1) << std::endl;
       lua_pop(L, 1);
+      lua_remove(L, errIdx);
       return;
     }
+    lua_remove(L, errIdx);
 
     lastModTime = getFileModTime(mainLuaPath);
     callLua("onEnter");
@@ -330,16 +385,25 @@ int main(int argc, char* argv[]) {
 
       if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
         if (!isSleepPreview && L) {
+          const auto t0 = std::chrono::steady_clock::now();
+          const int errIdx = lua_gettop(L) + 1;
+          lua_pushcfunction(L, luaTraceback);
           lua_getglobal(L, "onTouch");
           if (lua_isfunction(L, -1)) {
             lua_pushinteger(L, e.button.x);
             lua_pushinteger(L, e.button.y);
-            if (lua_pcall(L, 2, 0, 0) != LUA_OK) {
+            if (lua_pcall(L, 2, 0, errIdx) != LUA_OK) {
               std::cerr << "[Lua onTouch Error] " << lua_tostring(L, -1) << std::endl;
               lua_pop(L, 1);
             }
           } else {
             lua_pop(L, 1);
+          }
+          lua_remove(L, errIdx);
+          const auto t1 = std::chrono::steady_clock::now();
+          if (enableProfiling) {
+            const double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+            std::cout << "[Profile] onTouch(" << e.button.x << ", " << e.button.y << "): " << ms << " ms" << std::endl;
           }
           redraw();
         }
@@ -382,6 +446,12 @@ int main(int argc, char* argv[]) {
           continue;
         }
 
+        if (key == SDLK_t) {
+          enableProfiling = !enableProfiling;
+          std::cout << "[Simulator] Performance Profiling: " << (enableProfiling ? "ENABLED" : "DISABLED") << std::endl;
+          continue;
+        }
+
         if (!isSleepPreview && L) {
           int buttonId = -1;
           switch (key) {
@@ -413,11 +483,14 @@ int main(int argc, char* argv[]) {
 
           if (buttonId == 0) {
             // Check onBack()
+            const int errIdx = lua_gettop(L) + 1;
+            lua_pushcfunction(L, luaTraceback);
             lua_getglobal(L, "onBack");
             if (lua_isfunction(L, -1)) {
-              if (lua_pcall(L, 0, 1, 0) == LUA_OK) {
+              if (lua_pcall(L, 0, 1, errIdx) == LUA_OK) {
                 const bool consumed = lua_toboolean(L, -1);
                 lua_pop(L, 1);
+                lua_remove(L, errIdx);
                 if (consumed) {
                   redraw();
                   continue;
@@ -425,24 +498,28 @@ int main(int argc, char* argv[]) {
               } else {
                 std::cerr << "[Lua onBack Error] " << lua_tostring(L, -1) << std::endl;
                 lua_pop(L, 1);
+                lua_remove(L, errIdx);
               }
             } else {
-              lua_pop(L, 1);
+              lua_pop(L, 2);
             }
           }
 
           if (buttonId >= 0) {
+            const int errIdx = lua_gettop(L) + 1;
+            lua_pushcfunction(L, luaTraceback);
             lua_getglobal(L, "onInput");
             if (lua_isfunction(L, -1)) {
               lua_pushinteger(L, buttonId);
               lua_pushinteger(L, 1);  // isDown
-              if (lua_pcall(L, 2, 0, 0) != LUA_OK) {
+              if (lua_pcall(L, 2, 0, errIdx) != LUA_OK) {
                 std::cerr << "[Lua onInput Error] " << lua_tostring(L, -1) << std::endl;
                 lua_pop(L, 1);
               }
             } else {
               lua_pop(L, 1);
             }
+            lua_remove(L, errIdx);
             redraw();
           }
         }
@@ -473,16 +550,19 @@ int main(int argc, char* argv[]) {
       const float dt = updateElapsed / 1000.0f;
       lastUpdateTick = now;
       if (!isSleepPreview && L) {
+        const int errIdx = lua_gettop(L) + 1;
+        lua_pushcfunction(L, luaTraceback);
         lua_getglobal(L, "onUpdate");
         if (lua_isfunction(L, -1)) {
           lua_pushnumber(L, dt);
-          if (lua_pcall(L, 1, 0, 0) != LUA_OK) {
+          if (lua_pcall(L, 1, 0, errIdx) != LUA_OK) {
             std::cerr << "[Lua onUpdate Error] " << lua_tostring(L, -1) << std::endl;
             lua_pop(L, 1);
           }
         } else {
           lua_pop(L, 1);
         }
+        lua_remove(L, errIdx);
       }
     }
 

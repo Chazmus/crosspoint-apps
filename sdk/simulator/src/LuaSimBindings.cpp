@@ -390,10 +390,91 @@ int l_crosspoint_finish(lua_State* L) {
   return 0;
 }
 
-int l_crosspoint_log(lua_State* L) {
-  const char* msg = luaL_checkstring(L, 1);
-  std::cout << "[LUA] " << msg << std::endl;
+static void extractLogArgs(lua_State* L, const char*& tag, const char*& msg) {
+  if (lua_gettop(L) >= 2) {
+    tag = luaL_tolstring(L, 1, nullptr);
+    msg = luaL_tolstring(L, 2, nullptr);
+  } else if (lua_gettop(L) == 1) {
+    tag = "LUA";
+    msg = luaL_tolstring(L, 1, nullptr);
+  } else {
+    tag = "LUA";
+    msg = "";
+  }
+}
+
+int l_log_debug(lua_State* L) {
+  const char *tag = nullptr, *msg = nullptr;
+  extractLogArgs(L, tag, msg);
+  std::cout << "\033[90m[DBG] [" << tag << "] " << msg << "\033[0m" << std::endl;
   return 0;
+}
+
+int l_log_info(lua_State* L) {
+  const char *tag = nullptr, *msg = nullptr;
+  extractLogArgs(L, tag, msg);
+  std::cout << "\033[36m[INF] [" << tag << "] " << msg << "\033[0m" << std::endl;
+  return 0;
+}
+
+int l_log_warn(lua_State* L) {
+  const char *tag = nullptr, *msg = nullptr;
+  extractLogArgs(L, tag, msg);
+  std::cout << "\033[33m[WRN] [" << tag << "] " << msg << "\033[0m" << std::endl;
+  return 0;
+}
+
+int l_log_error(lua_State* L) {
+  const char *tag = nullptr, *msg = nullptr;
+  extractLogArgs(L, tag, msg);
+  std::cerr << "\033[31m[ERR] [" << tag << "] " << msg << "\033[0m" << std::endl;
+  return 0;
+}
+
+int l_crosspoint_log(lua_State* L) {
+  return l_log_info(L);
+}
+
+int l_crosspoint_getMemoryInfo(lua_State* L) {
+  lua_newtable(L);
+  const int luaKb = lua_gc(L, LUA_GCCOUNT, 0);
+  lua_pushinteger(L, luaKb);
+  lua_setfield(L, -2, "luaMemoryKb");
+  lua_pushinteger(L, 8192);
+  lua_setfield(L, -2, "freeHeapKb");
+  lua_pushinteger(L, 8192);
+  lua_setfield(L, -2, "freePsramKb");
+  return 1;
+}
+
+int simModuleSearcher(lua_State* L) {
+  auto* ctx = getContext(L);
+  const char* rawModName = luaL_checkstring(L, 1);
+  std::string modPath = rawModName;
+  for (char& c : modPath) {
+    if (c == '.') c = '/';
+  }
+
+  std::vector<std::string> candidates = {
+      modPath + ".lua",
+      modPath + "/init.lua",
+  };
+
+  std::string errorLog;
+  for (const auto& relPath : candidates) {
+    std::string content;
+    if (ctx && ctx->storage && ctx->storage->readFile(relPath, content)) {
+      std::string fullPath = (ctx ? ctx->appDir : ".") + "/" + relPath;
+      if (luaL_loadbuffer(L, content.data(), content.size(), ("@" + fullPath).c_str()) == LUA_OK) {
+        return 1;
+      }
+      return lua_error(L);
+    }
+    errorLog += "\n\tno file '" + relPath + "'";
+  }
+
+  lua_pushstring(L, errorLog.c_str());
+  return 1;
 }
 
 int l_crosspoint_isWifiConnected(lua_State* L) {
@@ -605,12 +686,23 @@ void registerSimBindings(lua_State* L, SimContext* ctx) {
   };
   registerModule(L, "storage", storageFuncs, ctx);
 
+  // Set log module
+  static const luaL_Reg logFuncs[] = {
+      {"debug", l_log_debug},
+      {"info", l_log_info},
+      {"warn", l_log_warn},
+      {"error", l_log_error},
+      {nullptr, nullptr},
+  };
+  registerModule(L, "log", logFuncs, ctx);
+
   // Set crosspoint module
   static const luaL_Reg crosspointFuncs[] = {
       {"millis", l_crosspoint_millis},
       {"requestUpdate", l_crosspoint_requestUpdate},
       {"finish", l_crosspoint_finish},
       {"log", l_crosspoint_log},
+      {"getMemoryInfo", l_crosspoint_getMemoryInfo},
       {"isWifiConnected", l_crosspoint_isWifiConnected},
       {"httpGet", l_crosspoint_httpGet},
       {"setSleepApp", l_crosspoint_setSleepApp},
@@ -619,6 +711,24 @@ void registerSimBindings(lua_State* L, SimContext* ctx) {
       {nullptr, nullptr},
   };
   registerModule(L, "crosspoint", crosspointFuncs, ctx);
+
+  // Register custom package searcher for modular require(...)
+  lua_getglobal(L, "package");
+  if (lua_istable(L, -1)) {
+    lua_getfield(L, -1, "searchers");
+    if (lua_istable(L, -1)) {
+      const int count = static_cast<int>(lua_rawlen(L, -1));
+      for (int i = count; i >= 2; --i) {
+        lua_rawgeti(L, -1, i);
+        lua_rawseti(L, -2, i + 1);
+      }
+      lua_pushlightuserdata(L, ctx);
+      lua_pushcclosure(L, simModuleSearcher, 1);
+      lua_rawseti(L, -2, 2);
+    }
+    lua_pop(L, 1);
+  }
+  lua_pop(L, 1);
 }
 
 }  // namespace sim
