@@ -4,7 +4,7 @@ A daily tactical chess puzzle application for CrossPoint Reader (ESP32-S3 / E-In
 
 ![Category](https://img.shields.io/badge/Category-Games%20%26%20Puzzles-blue)
 ![Orientation](https://img.shields.io/badge/Orientation-Landscape%20(800x480)-green)
-![Version](https://img.shields.io/badge/Version-1.0.3-orange)
+![Version](https://img.shields.io/badge/Version-1.0.4-orange)
 
 ---
 
@@ -12,12 +12,13 @@ A daily tactical chess puzzle application for CrossPoint Reader (ESP32-S3 / E-In
 
 **Daily Chess** brings daily tactical chess training to your CrossPoint e-reader. It connects to Wi-Fi on-demand to fetch the daily puzzle from the [Lichess API](https://lichess.org/api#tag/Puzzles/operation/apiPuzzleDaily), automatically manages Wi-Fi lifecycle to conserve battery, and gracefully falls back to bundled offline puzzles if no internet connection is available.
 
-Designed specifically for monochrome 800×480 E-Ink displays, Daily Chess features high-contrast piece glyphs, instant touch-based move input, turn validation, interactive solution checking, and an ambient sleep screen mode.
+Designed specifically for monochrome 800×480 E-Ink displays, Daily Chess features high-contrast Staunton piece glyphs (derived from Colin Burnett's renowned vector set), instant touch-based move input, turn validation, interactive solution checking, and an ambient sleep screen mode.
 
 ---
 
 ## Features
 
+- **High-Contrast Staunton Pieces**: Custom 40×40 dual-layer 1-bit sprites derived from Colin M.L. Burnett's open-source piece vectors. Includes solid white fills for Light pieces and 1-pixel outer contrast halos for Dark pieces, ensuring pieces pop out clearly on both white and dithered checkered squares.
 - **On-Demand Wi-Fi Daily Sync**: Tapping **Update** connects to Wi-Fi via `crosspoint.withWifi`, downloads the latest daily puzzle from Lichess over HTTPS, and automatically shuts down Wi-Fi immediately upon completion to preserve battery.
 - **Offline Fallback**: Bundled with local puzzle data (`daily.json`) so the app is always playable offline.
 - **Touch-Optimized Board**:
@@ -75,3 +76,10 @@ You can test and run Daily Chess on your desktop using the CrossPoint SDK:
 # Preview the sleep screen rendering
 ./sdk/run --screenshot-sleep /tmp/chess_sleep.bmp apps/chess
 ```
+
+---
+
+## Credits & Artwork
+
+- **Chess Piece Vectors**: Derived from Colin M.L. Burnett's (Cburnett) standard Staunton chess piece set (used on Wikipedia and Lichess), licensed under [Creative Commons Attribution-ShareAlike 3.0 Unported (CC BY-SA 3.0)](https://creativecommons.org/licenses/by-sa/3.0/) and GNU General Public License v3.
+- **Daily Puzzles**: Powered by the [Lichess.org Daily Puzzle API](https://lichess.org/api#tag/Puzzles/operation/apiPuzzleDaily).
