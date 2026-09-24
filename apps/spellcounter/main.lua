@@ -8,48 +8,103 @@
 local json = nil
 
 -- ---------------------------------------------------------------------------
+-- Safe Nil-Guards & Type Validation Helpers
+-- ---------------------------------------------------------------------------
+local function safeText(s, def)
+    if s == nil then return def or "" end
+    return tostring(s)
+end
+
+local function safeNum(n, def)
+    local v = tonumber(n)
+    if v == nil then return def or 0 end
+    return v
+end
+
+local function safeInt(n, def)
+    local v = tonumber(n)
+    if v == nil then return def or 0 end
+    return math.floor(v)
+end
+
+-- ---------------------------------------------------------------------------
 -- Color constants & drawing wrappers
 -- ---------------------------------------------------------------------------
 local C_BLACK = true
 local C_WHITE = false
 
 local function fillRounded(x, y, w, h, r, isBlack)
-    local col = (isBlack == false or isBlack == 3) and (gfx.COLOR_WHITE or 3) or (gfx.COLOR_BLACK or 0)
-    gfx.fillRoundedRect(x, y, w, h, r, col)
+    x = safeNum(x, 0)
+    y = safeNum(y, 0)
+    w = math.max(1, safeNum(w, 1))
+    h = math.max(1, safeNum(h, 1))
+    r = math.max(0, safeNum(r, 0))
+    local col = (isBlack == false or isBlack == 3) and ((gfx and gfx.COLOR_WHITE) or 3) or ((gfx and gfx.COLOR_BLACK) or 0)
+    if gfx and gfx.fillRoundedRect then
+        gfx.fillRoundedRect(x, y, w, h, r, col)
+    end
 end
 
 local function drawRounded(x, y, w, h, r, lineWidth, isBlack)
+    x = safeNum(x, 0)
+    y = safeNum(y, 0)
+    w = math.max(1, safeNum(w, 1))
+    h = math.max(1, safeNum(h, 1))
+    r = math.max(0, safeNum(r, 0))
     if type(lineWidth) == "boolean" then
         isBlack = lineWidth
         lineWidth = 1
     end
+    lineWidth = math.max(1, safeNum(lineWidth, 1))
     local black = (isBlack ~= false and isBlack ~= 3)
-    gfx.drawRoundedRect(x, y, w, h, r, lineWidth or 1, black)
+    if gfx and gfx.drawRoundedRect then
+        gfx.drawRoundedRect(x, y, w, h, r, lineWidth, black)
+    end
 end
 
 local function drawButton(x, y, w, h, text, font, isBlack, isFilled)
-    font = font or gfx.FONT_UI_10
+    x = safeNum(x, 0)
+    y = safeNum(y, 0)
+    w = math.max(1, safeNum(w, 40))
+    h = math.max(1, safeNum(h, 20))
+    font = font or (gfx and gfx.FONT_UI_10) or 1
+    text = safeText(text, "")
+
     local textBlack
     if isFilled then
         textBlack = not isBlack
     else
-        textBlack = isBlack
+        textBlack = (isBlack ~= false and isBlack ~= 3)
     end
+
     if isFilled then
         fillRounded(x, y, w, h, 8, isBlack)
     else
         drawRounded(x, y, w, h, 8, 2, isBlack)
     end
-    local tw = gfx.getTextWidth(font, text)
-    local th = gfx.getLineHeight(font)
-    gfx.drawText(font, x + math.floor((w - tw) / 2), y + math.floor((h - th) / 2), text, textBlack)
+
+    local tw = (gfx and gfx.getTextWidth and gfx.getTextWidth(font, text)) or (#text * 10)
+    local th = (gfx and gfx.getLineHeight and gfx.getLineHeight(font)) or 16
+    if gfx and gfx.drawText then
+        gfx.drawText(font, x + math.floor((w - tw) / 2), y + math.floor((h - th) / 2), text, textBlack)
+    end
 end
+
+-- ---------------------------------------------------------------------------
+-- Preset Player Names
+-- ---------------------------------------------------------------------------
+local PRESET_NAMES = {
+    {"P1", "Mono White", "Aggro", "Commander 1"},
+    {"P2", "Mono Blue",  "Control", "Commander 2"},
+    {"P3", "Mono Black", "Midrange", "Commander 3"},
+    {"P4", "Mono Red",   "Combo", "Commander 4"},
+}
 
 -- ---------------------------------------------------------------------------
 -- Game State
 -- ---------------------------------------------------------------------------
 local state = {
-    playerCount = 2,         -- 1, 2, 3, or 4
+    playerCount = 4,         -- 1, 2, 3, or 4
     startingLife = 40,       -- 40 (Commander), 20 (Constructed), 30 (Brawl)
     players = {},
     monarch = nil,           -- Player index who has Monarch or nil
@@ -69,19 +124,11 @@ local ui = {
     linkCmdrDamage = true,   -- Auto-subtract life when taking commander damage
 }
 
--- Preset player names
-local PRESET_NAMES = {
-    {"P1", "Mono White", "Aggro", "Commander 1"},
-    {"P2", "Mono Blue",  "Control", "Commander 2"},
-    {"P3", "Mono Black", "Midrange", "Commander 3"},
-    {"P4", "Mono Red",   "Combo", "Commander 4"},
-}
-
 -- ---------------------------------------------------------------------------
 -- Module Loading & Persistence
 -- ---------------------------------------------------------------------------
 local function initJson()
-    if not json then
+    if not json and storage and storage.readFile then
         local src = storage.readFile("json.lua")
         if src then
             local chunk = load(src)
@@ -91,34 +138,55 @@ local function initJson()
 end
 
 local function addHistory(msg)
-    table.insert(state.history, 1, msg)
+    if not state.history then state.history = {} end
+    table.insert(state.history, 1, safeText(msg, ""))
     if #state.history > 30 then
         table.remove(state.history)
     end
 end
 
+local function ensurePlayer(p, idx, defaultLife)
+    idx = math.max(1, math.min(4, safeInt(idx, 1)))
+    defaultLife = safeNum(defaultLife, state.startingLife or 40)
+    if type(p) ~= "table" then
+        p = {}
+    end
+
+    p.id = safeInt(p.id, idx)
+    if not p.name or p.name == "" then
+        local presets = PRESET_NAMES[idx] or {"P" .. idx}
+        p.name = presets[1] or ("P" .. idx)
+    end
+    p.name = safeText(p.name, "P" .. idx)
+    p.nameIdx = safeInt(p.nameIdx, 1)
+    p.life = safeNum(p.life, defaultLife)
+    p.delta = safeNum(p.delta, 0)
+    p.deltaTimer = safeNum(p.deltaTimer, 0)
+    p.poison = math.max(0, safeNum(p.poison, 0))
+    p.energy = math.max(0, safeNum(p.energy, 0))
+    p.experience = math.max(0, safeNum(p.experience, 0))
+    p.tax = math.max(0, safeNum(p.tax, 0))
+    p.storm = math.max(0, safeNum(p.storm, 0))
+    p.inverted = (p.inverted == true)
+
+    if type(p.cmdrDmg) ~= "table" then
+        p.cmdrDmg = {0, 0, 0, 0}
+    else
+        for opp = 1, 4 do
+            p.cmdrDmg[opp] = math.max(0, safeNum(p.cmdrDmg[opp], 0))
+        end
+    end
+
+    return p
+end
+
 local function createPlayer(idx, startLife)
-    local presets = PRESET_NAMES[idx] or {"P" .. idx}
-    return {
-        id = idx,
-        name = presets[1],
-        nameIdx = 1,
-        life = startLife or 40,
-        delta = 0,
-        deltaTimer = 0,
-        poison = 0,
-        energy = 0,
-        experience = 0,
-        tax = 0,             -- Commander tax casts
-        storm = 0,
-        cmdrDmg = {0, 0, 0, 0}, -- Damage taken from player 1..4 commanders
-        inverted = false,    -- Dark card theme toggle
-    }
+    return ensurePlayer({}, idx, startLife)
 end
 
 local function initNewGame(startLife, count)
-    state.playerCount = count or state.playerCount or 4
-    state.startingLife = startLife or state.startingLife or 40
+    state.startingLife = safeNum(startLife, state.startingLife or 40)
+    state.playerCount = math.max(1, math.min(4, safeInt(count, state.playerCount or 4)))
     state.players = {}
     for i = 1, 4 do
         table.insert(state.players, createPlayer(i, state.startingLife))
@@ -133,45 +201,45 @@ end
 
 local function saveState()
     initJson()
-    if not json then return end
+    if not json or not storage or not storage.writeFile then return end
 
     local data = {
-        playerCount = state.playerCount,
-        startingLife = state.startingLife,
+        playerCount = math.max(1, math.min(4, safeInt(state.playerCount, 4))),
+        startingLife = safeNum(state.startingLife, 40),
         monarch = state.monarch,
         initiative = state.initiative,
-        dayNight = state.dayNight,
-        selectedPlayer = state.selectedPlayer,
-        history = state.history,
+        dayNight = safeText(state.dayNight, "none"),
+        selectedPlayer = math.max(1, math.min(4, safeInt(state.selectedPlayer, 1))),
+        history = state.history or {},
         players = {},
     }
     for i = 1, 4 do
-        local p = state.players[i]
-        if p then
-            table.insert(data.players, {
-                id = p.id,
-                name = p.name,
-                nameIdx = p.nameIdx or 1,
-                life = p.life,
-                poison = p.poison,
-                energy = p.energy,
-                experience = p.experience,
-                tax = p.tax,
-                storm = p.storm,
-                cmdrDmg = p.cmdrDmg,
-                inverted = p.inverted,
-            })
-        end
+        local p = ensurePlayer(state.players[i], i, state.startingLife)
+        table.insert(data.players, {
+            id = p.id,
+            name = p.name,
+            nameIdx = p.nameIdx,
+            life = p.life,
+            poison = p.poison,
+            energy = p.energy,
+            experience = p.experience,
+            tax = p.tax,
+            storm = p.storm,
+            cmdrDmg = p.cmdrDmg,
+            inverted = p.inverted,
+        })
     end
 
     local encoded = json.encode(data)
     storage.writeFile("gamestate.json", encoded)
-    crosspoint.requestUpdate()
+    if crosspoint and crosspoint.requestUpdate then
+        crosspoint.requestUpdate()
+    end
 end
 
 local function loadState()
     initJson()
-    if not json then
+    if not json or not storage or not storage.readFile then
         initNewGame(40, 4)
         return
     end
@@ -183,45 +251,43 @@ local function loadState()
     end
 
     local data = json.decode(content)
-    if not data or not data.players or #data.players == 0 then
+    if not data or type(data) ~= "table" or not data.players or #data.players == 0 then
         initNewGame(40, 4)
         return
     end
 
-    state.playerCount = data.playerCount or 4
-    state.startingLife = data.startingLife or 40
-    state.monarch = data.monarch
-    state.initiative = data.initiative
-    state.dayNight = data.dayNight or "none"
-    state.selectedPlayer = data.selectedPlayer or 1
-    state.history = data.history or {}
+    state.startingLife = safeNum(data.startingLife, 40)
+    state.playerCount = math.max(1, math.min(4, safeInt(data.playerCount, 4)))
+    state.monarch = data.monarch and safeInt(data.monarch, 1) or nil
+    state.initiative = data.initiative and safeInt(data.initiative, 1) or nil
+    state.dayNight = safeText(data.dayNight, "none")
+    state.selectedPlayer = math.max(1, math.min(state.playerCount, safeInt(data.selectedPlayer, 1)))
+    state.history = (type(data.history) == "table") and data.history or {}
 
     state.players = {}
     for i = 1, 4 do
         local sp = data.players[i]
-        if sp then
-            local p = createPlayer(i, state.startingLife)
-            p.name = sp.name or ("P" .. i)
-            p.nameIdx = sp.nameIdx or 1
-            p.life = tonumber(sp.life) or state.startingLife
-            p.poison = tonumber(sp.poison) or 0
-            p.energy = tonumber(sp.energy) or 0
-            p.experience = tonumber(sp.experience) or 0
-            p.tax = tonumber(sp.tax) or 0
-            p.storm = tonumber(sp.storm) or 0
-            p.inverted = sp.inverted or false
+        local p = createPlayer(i, state.startingLife)
+        if type(sp) == "table" then
+            p.name = safeText(sp.name, p.name)
+            p.nameIdx = safeInt(sp.nameIdx, p.nameIdx)
+            p.life = safeNum(sp.life, state.startingLife)
+            p.poison = math.max(0, safeNum(sp.poison, 0))
+            p.energy = math.max(0, safeNum(sp.energy, 0))
+            p.experience = math.max(0, safeNum(sp.experience, 0))
+            p.tax = math.max(0, safeNum(sp.tax, 0))
+            p.storm = math.max(0, safeNum(sp.storm, 0))
+            p.inverted = (sp.inverted == true)
             if type(sp.cmdrDmg) == "table" then
                 p.cmdrDmg = {
-                    tonumber(sp.cmdrDmg[1]) or 0,
-                    tonumber(sp.cmdrDmg[2]) or 0,
-                    tonumber(sp.cmdrDmg[3]) or 0,
-                    tonumber(sp.cmdrDmg[4]) or 0,
+                    math.max(0, safeNum(sp.cmdrDmg[1], 0)),
+                    math.max(0, safeNum(sp.cmdrDmg[2], 0)),
+                    math.max(0, safeNum(sp.cmdrDmg[3], 0)),
+                    math.max(0, safeNum(sp.cmdrDmg[4], 0)),
                 }
             end
-            table.insert(state.players, p)
-        else
-            table.insert(state.players, createPlayer(i, state.startingLife))
         end
+        table.insert(state.players, p)
     end
 end
 
@@ -229,6 +295,11 @@ end
 -- Crisp Digit Rendering (Continuous bold strokes)
 -- ---------------------------------------------------------------------------
 local function drawSegment(x, y, w, h, s, segKey, isBlack)
+    x = safeNum(x, 0)
+    y = safeNum(y, 0)
+    w = safeNum(w, 20)
+    h = safeNum(h, 40)
+    s = safeNum(s, 6)
     local halfH = math.floor((h - s) / 2)
     local r = 1
     if segKey == "t" then
@@ -263,6 +334,13 @@ local SEGMENT_PATTERNS = {
 }
 
 local function drawSingleDigit(x, y, w, h, s, ch, isBlack)
+    x = safeNum(x, 0)
+    y = safeNum(y, 0)
+    w = safeNum(w, 20)
+    h = safeNum(h, 40)
+    s = safeNum(s, 6)
+    ch = safeText(ch, "0")
+
     if ch == "1" then
         local barW = s + 1
         local barX = x + math.floor((w - barW) / 2)
@@ -287,6 +365,13 @@ local function drawSingleDigit(x, y, w, h, s, ch, isBlack)
 end
 
 local function drawBigNumber(cx, cy, num, digitW, digitH, strokeW, isBlack)
+    cx = safeNum(cx, 0)
+    cy = safeNum(cy, 0)
+    num = safeNum(num, 0)
+    digitW = math.max(10, safeNum(digitW, 26))
+    digitH = math.max(16, safeNum(digitH, 48))
+    strokeW = math.max(2, safeNum(strokeW, 6))
+
     local str = tostring(num)
     local spacing = math.max(4, math.floor(digitW * 0.22))
     local totalW = #str * digitW + (#str - 1) * spacing
@@ -304,47 +389,64 @@ end
 -- Life & Counter Mutation Helpers
 -- ---------------------------------------------------------------------------
 local function changeLife(playerIdx, amount)
-    local p = state.players[playerIdx]
-    if not p then return end
-    p.life = p.life + amount
-    p.delta = p.delta + amount
-    p.deltaTimer = crosspoint.millis() + 2500
+    playerIdx = math.max(1, math.min(4, safeInt(playerIdx, 1)))
+    amount = safeNum(amount, 0)
+    local p = ensurePlayer(state.players[playerIdx], playerIdx, state.startingLife)
+    state.players[playerIdx] = p
+
+    p.life = safeNum(p.life, state.startingLife or 40) + amount
+    p.delta = safeNum(p.delta, 0) + amount
+    local now = (crosspoint and crosspoint.millis and crosspoint.millis()) or 0
+    p.deltaTimer = now + 2500
     local sign = amount >= 0 and "+" or ""
-    addHistory(p.name .. " " .. sign .. amount .. " life (" .. p.life .. ")")
+    addHistory(safeText(p.name, "P" .. playerIdx) .. " " .. sign .. amount .. " life (" .. p.life .. ")")
     saveState()
 end
 
 local function changePoison(playerIdx, amount)
-    local p = state.players[playerIdx]
-    if not p then return end
-    p.poison = math.max(0, p.poison + amount)
-    addHistory(p.name .. " poison: " .. p.poison)
+    playerIdx = math.max(1, math.min(4, safeInt(playerIdx, 1)))
+    amount = safeNum(amount, 0)
+    local p = ensurePlayer(state.players[playerIdx], playerIdx, state.startingLife)
+    state.players[playerIdx] = p
+
+    p.poison = math.max(0, safeNum(p.poison, 0) + amount)
+    addHistory(safeText(p.name, "P" .. playerIdx) .. " poison: " .. p.poison)
     saveState()
 end
 
 local function changeCmdrDamage(playerIdx, opponentIdx, amount)
-    local p = state.players[playerIdx]
-    if not p then return end
-    local oldDmg = p.cmdrDmg[opponentIdx] or 0
+    playerIdx = math.max(1, math.min(4, safeInt(playerIdx, 1)))
+    opponentIdx = math.max(1, math.min(4, safeInt(opponentIdx, 1)))
+    amount = safeNum(amount, 0)
+    local p = ensurePlayer(state.players[playerIdx], playerIdx, state.startingLife)
+    state.players[playerIdx] = p
+
+    local oldDmg = safeNum(p.cmdrDmg[opponentIdx], 0)
     local newDmg = math.max(0, oldDmg + amount)
     local diff = newDmg - oldDmg
     p.cmdrDmg[opponentIdx] = newDmg
 
     if ui.linkCmdrDamage and diff ~= 0 then
-        p.life = p.life - diff
-        p.delta = p.delta - diff
-        p.deltaTimer = crosspoint.millis() + 2500
+        p.life = safeNum(p.life, state.startingLife or 40) - diff
+        p.delta = safeNum(p.delta, 0) - diff
+        local now = (crosspoint and crosspoint.millis and crosspoint.millis()) or 0
+        p.deltaTimer = now + 2500
     end
 
-    local oppName = (state.players[opponentIdx] and state.players[opponentIdx].name) or ("P" .. opponentIdx)
-    addHistory(p.name .. " took " .. diff .. " Cmdr Dmg from " .. oppName .. " (Total: " .. newDmg .. ")")
+    local oppP = state.players[opponentIdx]
+    local oppName = (oppP and oppP.name) or ("P" .. opponentIdx)
+    addHistory(safeText(p.name, "P" .. playerIdx) .. " took " .. diff .. " Cmdr Dmg from " .. oppName .. " (Total: " .. newDmg .. ")")
     saveState()
 end
 
 local function isPlayerLethal(p)
-    if p.life <= 0 then return true, "DEAD (0 LIFE)" end
-    if p.poison >= 10 then return true, "POISONED (10)" end
-    for oppIdx, dmg in ipairs(p.cmdrDmg or {}) do
+    if not p then return false, nil end
+    local life = safeNum(p.life, 40)
+    local poison = safeNum(p.poison, 0)
+    if life <= 0 then return true, "DEAD (0 LIFE)" end
+    if poison >= 10 then return true, "POISONED (10)" end
+    for oppIdx = 1, 4 do
+        local dmg = safeNum(p.cmdrDmg and p.cmdrDmg[oppIdx], 0)
         if dmg >= 21 then
             return true, "CMDR LETHAL (21)"
         end
@@ -356,6 +458,9 @@ end
 -- Layout Computation (Dynamic orientation & player count)
 -- ---------------------------------------------------------------------------
 local function getCardRects(w, h, count)
+    w = safeNum(w, 800)
+    h = safeNum(h, 480)
+    count = math.max(1, math.min(4, safeInt(count, 4)))
     local headerH = 38
     local availH = h - headerH
     local rects = {}
@@ -402,7 +507,10 @@ end
 -- UI Drawing: Player Card
 -- ---------------------------------------------------------------------------
 local function drawPlayerCard(p, rect, isSelected)
-    local x, y, w, h = rect.x, rect.y, rect.w, rect.h
+    if not rect or type(rect) ~= "table" then return end
+    p = ensurePlayer(p, 1, state.startingLife or 40)
+
+    local x, y, w, h = safeNum(rect.x, 0), safeNum(rect.y, 0), safeNum(rect.w, 100), safeNum(rect.h, 100)
     local bgCol = p.inverted and C_BLACK or C_WHITE
     local fgCol = p.inverted and C_WHITE or C_BLACK
 
@@ -422,21 +530,27 @@ local function drawPlayerCard(p, rect, isSelected)
 
     -- Card Header Bar
     local cardHeaderH = 30
-    local pName = p.name or ("P" .. p.id)
-    gfx.drawText(gfx.FONT_UI_10, x + 12, y + 6, pName, fgCol)
+    local pName = safeText(p.name, "P" .. p.id)
+    if gfx and gfx.drawText then
+        gfx.drawText(gfx.FONT_UI_10, x + 12, y + 6, pName, fgCol)
+    end
 
     -- Status Badges (Monarch / Initiative)
-    local badgeX = x + gfx.getTextWidth(gfx.FONT_UI_10, pName) + 20
+    local badgeX = x + ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_UI_10, pName)) or 30) + 20
     if state.monarch == p.id then
-        local mw = gfx.getTextWidth(gfx.FONT_SMALL, "CROWN") + 12
+        local mw = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_SMALL, "CROWN")) or 40) + 12
         fillRounded(badgeX, y + 5, mw, 18, 4, fgCol)
-        gfx.drawText(gfx.FONT_SMALL, badgeX + 6, y + 7, "CROWN", bgCol)
+        if gfx and gfx.drawText then
+            gfx.drawText(gfx.FONT_SMALL, badgeX + 6, y + 7, "CROWN", bgCol)
+        end
         badgeX = badgeX + mw + 6
     end
     if state.initiative == p.id then
-        local iw = gfx.getTextWidth(gfx.FONT_SMALL, "INIT") + 12
+        local iw = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_SMALL, "INIT")) or 30) + 12
         fillRounded(badgeX, y + 5, iw, 18, 4, fgCol)
-        gfx.drawText(gfx.FONT_SMALL, badgeX + 6, y + 7, "INIT", bgCol)
+        if gfx and gfx.drawText then
+            gfx.drawText(gfx.FONT_SMALL, badgeX + 6, y + 7, "INIT", bgCol)
+        end
         badgeX = badgeX + iw + 6
     end
 
@@ -446,10 +560,14 @@ local function drawPlayerCard(p, rect, isSelected)
     local menuBtnX = x + w - menuBtnW - 8
     local menuBtnY = y + 4
     drawRounded(menuBtnX, menuBtnY, menuBtnW, menuBtnH, 6, 1, fgCol)
-    gfx.drawText(gfx.FONT_SMALL, menuBtnX + 11, menuBtnY + 4, "...", fgCol)
+    if gfx and gfx.drawText then
+        gfx.drawText(gfx.FONT_SMALL, menuBtnX + 11, menuBtnY + 4, "...", fgCol)
+    end
 
     -- Divider line under card header
-    gfx.drawLine(x + 8, y + cardHeaderH, x + w - 8, y + cardHeaderH, 1, fgCol)
+    if gfx and gfx.drawLine then
+        gfx.drawLine(x + 8, y + cardHeaderH, x + w - 8, y + cardHeaderH, 1, fgCol)
+    end
 
     -- Main Life Number & Touch Areas
     local lifeCenterY = y + cardHeaderH + math.floor((h - cardHeaderH - 42) / 2)
@@ -462,13 +580,16 @@ local function drawPlayerCard(p, rect, isSelected)
     drawBigNumber(lifeCenterX, lifeCenterY, p.life, digitW, digitH, strokeW, fgCol)
 
     -- Floating Delta (e.g. -3 or +5)
-    if p.delta ~= 0 and crosspoint.millis() < p.deltaTimer then
+    local now = (crosspoint and crosspoint.millis and crosspoint.millis()) or 0
+    if safeNum(p.delta, 0) ~= 0 and now < safeNum(p.deltaTimer, 0) then
         local deltaStr = (p.delta > 0 and "+" or "") .. p.delta
-        local deltaW = gfx.getTextWidth(gfx.FONT_UI_10, deltaStr)
+        local deltaW = (gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_UI_10, deltaStr)) or 24
         local deltaY = lifeCenterY - math.floor(digitH / 2) - 16
         if deltaY > y + cardHeaderH + 2 then
             fillRounded(lifeCenterX - math.floor(deltaW / 2) - 6, deltaY, deltaW + 12, 18, 4, fgCol)
-            gfx.drawText(gfx.FONT_UI_10, lifeCenterX - math.floor(deltaW / 2), deltaY + 1, deltaStr, bgCol)
+            if gfx and gfx.drawText then
+                gfx.drawText(gfx.FONT_UI_10, lifeCenterX - math.floor(deltaW / 2), deltaY + 1, deltaStr, bgCol)
+            end
         end
     end
 
@@ -480,12 +601,16 @@ local function drawPlayerCard(p, rect, isSelected)
 
     -- Minus button box
     drawRounded(minusX, btnY, btnSize, btnSize, 8, 2, fgCol)
-    gfx.drawLine(minusX + 10, lifeCenterY, minusX + btnSize - 10, lifeCenterY, 3, fgCol)
+    if gfx and gfx.drawLine then
+        gfx.drawLine(minusX + 10, lifeCenterY, minusX + btnSize - 10, lifeCenterY, 3, fgCol)
+    end
 
     -- Plus button box
     drawRounded(plusX, btnY, btnSize, btnSize, 8, 2, fgCol)
-    gfx.drawLine(plusX + 10, lifeCenterY, plusX + btnSize - 10, lifeCenterY, 3, fgCol)
-    gfx.drawLine(plusX + math.floor(btnSize / 2), btnY + 10, plusX + math.floor(btnSize / 2), btnY + btnSize - 10, 3, fgCol)
+    if gfx and gfx.drawLine then
+        gfx.drawLine(plusX + 10, lifeCenterY, plusX + btnSize - 10, lifeCenterY, 3, fgCol)
+        gfx.drawLine(plusX + math.floor(btnSize / 2), btnY + 10, plusX + math.floor(btnSize / 2), btnY + btnSize - 10, 3, fgCol)
+    end
 
     -- Quick +/- 5 pills
     if h >= 180 then
@@ -493,64 +618,84 @@ local function drawPlayerCard(p, rect, isSelected)
         local pillH = 22
         local pillY = btnY + btnSize + 6
         if pillY + pillH <= y + h - 40 then
-            -- -5 pill
             drawRounded(minusX + math.floor((btnSize - pillW) / 2), pillY, pillW, pillH, 6, 1, fgCol)
-            gfx.drawText(gfx.FONT_SMALL, minusX + math.floor((btnSize - pillW) / 2) + 7, pillY + 4, "-5", fgCol)
-            -- +5 pill
+            if gfx and gfx.drawText then
+                gfx.drawText(gfx.FONT_SMALL, minusX + math.floor((btnSize - pillW) / 2) + 7, pillY + 4, "-5", fgCol)
+            end
+
             drawRounded(plusX + math.floor((btnSize - pillW) / 2), pillY, pillW, pillH, 6, 1, fgCol)
-            gfx.drawText(gfx.FONT_SMALL, plusX + math.floor((btnSize - pillW) / 2) + 5, pillY + 4, "+5", fgCol)
+            if gfx and gfx.drawText then
+                gfx.drawText(gfx.FONT_SMALL, plusX + math.floor((btnSize - pillW) / 2) + 5, pillY + 4, "+5", fgCol)
+            end
         end
     end
 
     -- Bottom Counters Strip (Poison, Commander Dmg, Tax)
     local stripH = 34
     local stripY = y + h - stripH - 4
-    gfx.drawLine(x + 8, stripY, x + w - 8, stripY, 1, fgCol)
+    if gfx and gfx.drawLine then
+        gfx.drawLine(x + 8, stripY, x + w - 8, stripY, 1, fgCol)
+    end
 
     local cx = x + 12
     -- Poison chip: P: <count>
-    local pStr = "P: " .. p.poison
-    local pw = gfx.getTextWidth(gfx.FONT_SMALL, pStr) + 16
-    if p.poison > 0 then
+    local pStr = "P: " .. safeNum(p.poison, 0)
+    local pw = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_SMALL, pStr)) or 30) + 16
+    if safeNum(p.poison, 0) > 0 then
         fillRounded(cx, stripY + 5, pw, 22, 6, fgCol)
-        gfx.drawText(gfx.FONT_SMALL, cx + 8, stripY + 9, pStr, bgCol)
+        if gfx and gfx.drawText then
+            gfx.drawText(gfx.FONT_SMALL, cx + 8, stripY + 9, pStr, bgCol)
+        end
     else
         drawRounded(cx, stripY + 5, pw, 22, 6, 1, fgCol)
-        gfx.drawText(gfx.FONT_SMALL, cx + 8, stripY + 9, pStr, fgCol)
+        if gfx and gfx.drawText then
+            gfx.drawText(gfx.FONT_SMALL, cx + 8, stripY + 9, pStr, fgCol)
+        end
     end
     cx = cx + pw + 8
 
     -- Commander Damage Chip
     local maxCmdr = 0
     for _, d in ipairs(p.cmdrDmg or {}) do
-        if d > maxCmdr then maxCmdr = d end
+        local val = safeNum(d, 0)
+        if val > maxCmdr then maxCmdr = val end
     end
     local cStr = "Cmdr: " .. maxCmdr
-    local cw = gfx.getTextWidth(gfx.FONT_SMALL, cStr) + 16
+    local cw = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_SMALL, cStr)) or 40) + 16
     if maxCmdr >= 15 then
         fillRounded(cx, stripY + 5, cw, 22, 6, fgCol)
-        gfx.drawText(gfx.FONT_SMALL, cx + 8, stripY + 9, cStr, bgCol)
+        if gfx and gfx.drawText then
+            gfx.drawText(gfx.FONT_SMALL, cx + 8, stripY + 9, cStr, bgCol)
+        end
     else
         drawRounded(cx, stripY + 5, cw, 22, 6, 1, fgCol)
-        gfx.drawText(gfx.FONT_SMALL, cx + 8, stripY + 9, cStr, fgCol)
+        if gfx and gfx.drawText then
+            gfx.drawText(gfx.FONT_SMALL, cx + 8, stripY + 9, cStr, fgCol)
+        end
     end
     cx = cx + cw + 8
 
     -- Commander Tax Chip
+    local taxVal = safeNum(p.tax, 0)
     if cx + 64 <= x + w - 40 then
-        local tStr = "Tax: +" .. (p.tax * 2)
-        local tw = gfx.getTextWidth(gfx.FONT_SMALL, tStr) + 14
+        local tStr = "Tax: +" .. (taxVal * 2)
+        local tw = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_SMALL, tStr)) or 40) + 14
         drawRounded(cx, stripY + 5, tw, 22, 6, 1, fgCol)
-        gfx.drawText(gfx.FONT_SMALL, cx + 7, stripY + 9, tStr, fgCol)
+        if gfx and gfx.drawText then
+            gfx.drawText(gfx.FONT_SMALL, cx + 7, stripY + 9, tStr, fgCol)
+        end
         cx = cx + tw + 8
     end
 
     -- Energy {E} Chip if > 0
-    if p.energy > 0 and cx + 44 <= x + w - 10 then
-        local eStr = "E: " .. p.energy
-        local ew = gfx.getTextWidth(gfx.FONT_SMALL, eStr) + 12
+    local energyVal = safeNum(p.energy, 0)
+    if energyVal > 0 and cx + 44 <= x + w - 10 then
+        local eStr = "E: " .. energyVal
+        local ew = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_SMALL, eStr)) or 30) + 12
         drawRounded(cx, stripY + 5, ew, 22, 6, 1, fgCol)
-        gfx.drawText(gfx.FONT_SMALL, cx + 6, stripY + 9, eStr, fgCol)
+        if gfx and gfx.drawText then
+            gfx.drawText(gfx.FONT_SMALL, cx + 6, stripY + 9, eStr, fgCol)
+        end
     end
 
     -- Lethal / Defeated Banner
@@ -558,11 +703,17 @@ local function drawPlayerCard(p, rect, isSelected)
     if isDead then
         local bannerH = 34
         local bannerY = y + math.floor((h - bannerH) / 2)
-        gfx.fillRect(x + 4, bannerY, w - 8, bannerH, C_BLACK)
-        gfx.drawRect(x + 4, bannerY, w - 8, bannerH, 2, C_WHITE)
-        local deathText = "DEFEATED - " .. reason
-        local dw = gfx.getTextWidth(gfx.FONT_UI_10, deathText)
-        gfx.drawText(gfx.FONT_UI_10, x + math.floor((w - dw) / 2), bannerY + 7, deathText, C_WHITE)
+        if gfx and gfx.fillRect then
+            gfx.fillRect(x + 4, bannerY, w - 8, bannerH, C_BLACK)
+        end
+        if gfx and gfx.drawRect then
+            gfx.drawRect(x + 4, bannerY, w - 8, bannerH, 2, C_WHITE)
+        end
+        local deathText = "DEFEATED - " .. safeText(reason, "LETHAL")
+        local dw = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_UI_10, deathText)) or 100)
+        if gfx and gfx.drawText then
+            gfx.drawText(gfx.FONT_UI_10, x + math.floor((w - dw) / 2), bannerY + 7, deathText, C_WHITE)
+        end
     end
 end
 
@@ -570,13 +721,20 @@ end
 -- UI Drawing: Top Navigation Bar
 -- ---------------------------------------------------------------------------
 local function drawTopBar(w, headerH)
-    gfx.fillRect(0, 0, w, headerH, C_BLACK)
+    w = safeNum(w, 800)
+    headerH = safeNum(headerH, 38)
+    if gfx and gfx.fillRect then
+        gfx.fillRect(0, 0, w, headerH, C_BLACK)
+    end
 
     -- Left: Player Count selector button [4 Players]
-    local pcText = state.playerCount .. " Player" .. (state.playerCount > 1 and "s" or "")
-    local pcW = gfx.getTextWidth(gfx.FONT_UI_10, pcText) + 16
+    local pc = math.max(1, math.min(4, safeInt(state.playerCount, 4)))
+    local pcText = pc .. " Player" .. (pc > 1 and "s" or "")
+    local pcW = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_UI_10, pcText)) or 60) + 16
     drawRounded(10, 5, pcW, headerH - 10, 6, 1, C_WHITE)
-    gfx.drawText(gfx.FONT_UI_10, 18, 9, pcText, C_WHITE)
+    if gfx and gfx.drawText then
+        gfx.drawText(gfx.FONT_UI_10, 18, 9, pcText, C_WHITE)
+    end
 
     -- Center: App Title / Token Summary
     local title = "SPELL COUNTER"
@@ -585,26 +743,32 @@ local function drawTopBar(w, headerH)
     elseif state.dayNight == "night" then
         title = "SPELL COUNTER [NIGHT]"
     end
-    local tw = gfx.getTextWidth(gfx.FONT_UI_10, title)
-    gfx.drawText(gfx.FONT_UI_10, math.floor((w - tw) / 2), 9, title, C_WHITE)
+    local tw = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_UI_10, title)) or 100)
+    if gfx and gfx.drawText then
+        gfx.drawText(gfx.FONT_UI_10, math.floor((w - tw) / 2), 9, title, C_WHITE)
+    end
 
     -- Right Buttons: [Reset] & [Tools]
     local rightX = w - 10
 
     -- [Tools] button
     local toolsText = "Tools"
-    local toolsW = gfx.getTextWidth(gfx.FONT_UI_10, toolsText) + 16
+    local toolsW = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_UI_10, toolsText)) or 36) + 16
     rightX = rightX - toolsW
     drawRounded(rightX, 5, toolsW, headerH - 10, 6, 1, C_WHITE)
-    gfx.drawText(gfx.FONT_UI_10, rightX + 8, 9, toolsText, C_WHITE)
+    if gfx and gfx.drawText then
+        gfx.drawText(gfx.FONT_UI_10, rightX + 8, 9, toolsText, C_WHITE)
+    end
 
     -- [Reset] button
     rightX = rightX - 8
     local resetText = "Reset"
-    local resetW = gfx.getTextWidth(gfx.FONT_UI_10, resetText) + 16
+    local resetW = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_UI_10, resetText)) or 36) + 16
     rightX = rightX - resetW
     drawRounded(rightX, 5, resetW, headerH - 10, 6, 1, C_WHITE)
-    gfx.drawText(gfx.FONT_UI_10, rightX + 8, 9, resetText, C_WHITE)
+    if gfx and gfx.drawText then
+        gfx.drawText(gfx.FONT_UI_10, rightX + 8, 9, resetText, C_WHITE)
+    end
 end
 
 -- ---------------------------------------------------------------------------
@@ -613,6 +777,8 @@ end
 
 -- 1. Tools Modal (Dice, Tokens, History)
 local function drawToolsModal(w, h)
+    w = safeNum(w, 800)
+    h = safeNum(h, 480)
     local mw = math.min(640, w - 40)
     local mh = math.min(410, h - 30)
     local mx = math.floor((w - mw) / 2)
@@ -622,13 +788,16 @@ local function drawToolsModal(w, h)
     drawRounded(mx, my, mw, mh, 16, 3, C_BLACK)
 
     -- Header
-    gfx.fillRect(mx + 3, my + 3, mw - 6, 38, C_BLACK)
-    gfx.drawText(gfx.FONT_UI_10, mx + 16, my + 11, "GAME TOOLS & UTILITIES", C_WHITE)
+    if gfx and gfx.fillRect then
+        gfx.fillRect(mx + 3, my + 3, mw - 6, 38, C_BLACK)
+    end
+    if gfx and gfx.drawText then
+        gfx.drawText(gfx.FONT_UI_10, mx + 16, my + 11, "GAME TOOLS & UTILITIES", C_WHITE)
+    end
 
     -- Close [X] button
     local closeX = mx + mw - 46
-    drawRounded(closeX, my + 7, 36, 28, 6, 1, C_WHITE)
-    gfx.drawText(gfx.FONT_UI_10, closeX + 12, my + 11, "X", C_WHITE)
+    drawButton(closeX, my + 7, 36, 28, "X", gfx.FONT_UI_10, C_WHITE, false)
 
     -- Tabs: [Dice & Coin] | [Tokens & Status] | [Game Log]
     local tabY = my + 48
@@ -670,36 +839,51 @@ local function drawToolsModal(w, h)
         drawRounded(mx + 24, resBoxY, resBoxW, resBoxH, 12, 2, C_BLACK)
 
         if ui.diceResult then
-            local header = ui.diceResult.type .. " RESULT:"
-            local hw = gfx.getTextWidth(gfx.FONT_SMALL, header)
-            gfx.drawText(gfx.FONT_SMALL, mx + 24 + math.floor((resBoxW - hw) / 2), resBoxY + 16, header, C_BLACK)
+            local header = safeText(ui.diceResult.type, "DICE") .. " RESULT:"
+            local hw = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_SMALL, header)) or 60)
+            if gfx and gfx.drawText then
+                gfx.drawText(gfx.FONT_SMALL, mx + 24 + math.floor((resBoxW - hw) / 2), resBoxY + 16, header, C_BLACK)
+            end
 
-            local resStr = tostring(ui.diceResult.val)
-            local rw = gfx.getTextWidth(gfx.FONT_UI_12, resStr)
-            gfx.drawText(gfx.FONT_UI_12, mx + 24 + math.floor((resBoxW - rw) / 2), resBoxY + 48, resStr, C_BLACK)
+            local resStr = safeText(ui.diceResult.val, "?")
+            local rw = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_UI_12, resStr)) or 30)
+            if gfx and gfx.drawText then
+                gfx.drawText(gfx.FONT_UI_12, mx + 24 + math.floor((resBoxW - rw) / 2), resBoxY + 48, resStr, C_BLACK)
+            end
         elseif ui.firstPlayerResult then
-            local fpName = state.players[ui.firstPlayerResult] and state.players[ui.firstPlayerResult].name or ("Player " .. ui.firstPlayerResult)
+            local fp = math.max(1, math.min(4, safeInt(ui.firstPlayerResult, 1)))
+            local fpPlayer = ensurePlayer(state.players[fp], fp, state.startingLife)
+            local fpName = safeText(fpPlayer.name, "Player " .. fp)
             local header = "RANDOM STARTING PLAYER:"
-            local hw = gfx.getTextWidth(gfx.FONT_UI_10, header)
-            gfx.drawText(gfx.FONT_UI_10, mx + 24 + math.floor((resBoxW - hw) / 2), resBoxY + 24, header, C_BLACK)
+            local hw = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_UI_10, header)) or 80)
+            if gfx and gfx.drawText then
+                gfx.drawText(gfx.FONT_UI_10, mx + 24 + math.floor((resBoxW - hw) / 2), resBoxY + 24, header, C_BLACK)
+            end
 
             local resText = "-> " .. fpName .. " GOES FIRST! <-"
-            local rw = gfx.getTextWidth(gfx.FONT_UI_12, resText)
-            gfx.drawText(gfx.FONT_UI_12, mx + 24 + math.floor((resBoxW - rw) / 2), resBoxY + 54, resText, C_BLACK)
+            local rw = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_UI_12, resText)) or 100)
+            if gfx and gfx.drawText then
+                gfx.drawText(gfx.FONT_UI_12, mx + 24 + math.floor((resBoxW - rw) / 2), resBoxY + 54, resText, C_BLACK)
+            end
         else
             local hint = "Tap a button above to roll dice or pick first player"
-            local hw = gfx.getTextWidth(gfx.FONT_SMALL, hint)
-            gfx.drawText(gfx.FONT_SMALL, mx + 24 + math.floor((resBoxW - hw) / 2), resBoxY + math.floor(resBoxH / 2) - 8, hint, C_BLACK)
+            local hw = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_SMALL, hint)) or 120)
+            if gfx and gfx.drawText then
+                gfx.drawText(gfx.FONT_SMALL, mx + 24 + math.floor((resBoxW - hw) / 2), resBoxY + math.floor(resBoxH / 2) - 8, hint, C_BLACK)
+            end
         end
 
     -- Tab Content 2: Tokens & Status (Monarch, Initiative, Day/Night)
     elseif ui.toolsTab == "tokens" then
         local rowY = contentY + 4
+        local pc = math.max(1, math.min(4, safeInt(state.playerCount, 4)))
 
         -- 1. Monarch Row
-        gfx.drawText(gfx.FONT_UI_10, mx + 24, rowY + 6, "The Monarch:", C_BLACK)
+        if gfx and gfx.drawText then
+            gfx.drawText(gfx.FONT_UI_10, mx + 24, rowY + 6, "The Monarch:", C_BLACK)
+        end
         local btnX = mx + 160
-        for i = 1, state.playerCount do
+        for i = 1, pc do
             local pName = "P" .. i
             drawButton(btnX, rowY, 52, 32, pName, gfx.FONT_SMALL, C_BLACK, state.monarch == i)
             btnX = btnX + 60
@@ -708,9 +892,11 @@ local function drawToolsModal(w, h)
 
         -- 2. Initiative Row
         rowY = rowY + 48
-        gfx.drawText(gfx.FONT_UI_10, mx + 24, rowY + 6, "Initiative:", C_BLACK)
+        if gfx and gfx.drawText then
+            gfx.drawText(gfx.FONT_UI_10, mx + 24, rowY + 6, "Initiative:", C_BLACK)
+        end
         btnX = mx + 160
-        for i = 1, state.playerCount do
+        for i = 1, pc do
             local pName = "P" .. i
             drawButton(btnX, rowY, 52, 32, pName, gfx.FONT_SMALL, C_BLACK, state.initiative == i)
             btnX = btnX + 60
@@ -719,7 +905,9 @@ local function drawToolsModal(w, h)
 
         -- 3. Day / Night Tracker
         rowY = rowY + 48
-        gfx.drawText(gfx.FONT_UI_10, mx + 24, rowY + 6, "Day / Night:", C_BLACK)
+        if gfx and gfx.drawText then
+            gfx.drawText(gfx.FONT_UI_10, mx + 24, rowY + 6, "Day / Night:", C_BLACK)
+        end
         btnX = mx + 160
         local modes = {{"none", "Off"}, {"day", "Day"}, {"night", "Night"}}
         for _, m in ipairs(modes) do
@@ -735,23 +923,31 @@ local function drawToolsModal(w, h)
 
         local lineY = logBoxY + 8
         local maxLines = math.floor((logBoxH - 16) / 20)
-        for i = 1, math.min(#state.history, maxLines) do
-            local item = state.history[i]
-            gfx.drawText(gfx.FONT_SMALL, mx + 32, lineY, item, C_BLACK)
+        local hList = state.history or {}
+        for i = 1, math.min(#hList, maxLines) do
+            local item = safeText(hList[i], "")
+            if gfx and gfx.drawText then
+                gfx.drawText(gfx.FONT_SMALL, mx + 32, lineY, item, C_BLACK)
+            end
             lineY = lineY + 20
         end
-        if #state.history == 0 then
+        if #hList == 0 then
             local emptyMsg = "No events recorded yet."
-            local ew = gfx.getTextWidth(gfx.FONT_SMALL, emptyMsg)
-            gfx.drawText(gfx.FONT_SMALL, mx + 20 + math.floor((mw - 40 - ew) / 2), logBoxY + 30, emptyMsg, C_BLACK)
+            local ew = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_SMALL, emptyMsg)) or 60)
+            if gfx and gfx.drawText then
+                gfx.drawText(gfx.FONT_SMALL, mx + 20 + math.floor((mw - 40 - ew) / 2), logBoxY + 30, emptyMsg, C_BLACK)
+            end
         end
     end
 end
 
 -- 2. Player Detail / Counters Drawer Modal
 local function drawPlayerDetailModal(w, h)
-    local p = state.players[ui.detailPlayer]
-    if not p then return end
+    w = safeNum(w, 800)
+    h = safeNum(h, 480)
+    local dIdx = math.max(1, math.min(4, safeInt(ui.detailPlayer, 1)))
+    local p = ensurePlayer(state.players[dIdx], dIdx, state.startingLife or 40)
+    state.players[dIdx] = p
 
     local mw = math.min(680, w - 30)
     local mh = math.min(430, h - 20)
@@ -762,8 +958,13 @@ local function drawPlayerDetailModal(w, h)
     drawRounded(mx, my, mw, mh, 16, 3, C_BLACK)
 
     -- Header with Player Name & Close
-    gfx.fillRect(mx + 3, my + 3, mw - 6, 42, C_BLACK)
-    gfx.drawText(gfx.FONT_UI_12, mx + 16, my + 10, (p.name or ("Player " .. p.id)) .. " - COUNTERS & DETAILS", C_WHITE)
+    if gfx and gfx.fillRect then
+        gfx.fillRect(mx + 3, my + 3, mw - 6, 42, C_BLACK)
+    end
+    local titleText = safeText(p.name, "Player " .. p.id) .. " - COUNTERS & DETAILS"
+    if gfx and gfx.drawText then
+        gfx.drawText(gfx.FONT_UI_12, mx + 16, my + 10, titleText, C_WHITE)
+    end
 
     -- Name Cycle button [Cycle Name]
     local nameBtnW = 110
@@ -777,7 +978,9 @@ local function drawPlayerDetailModal(w, h)
     local rowY = my + 54
 
     -- Row 1: Life Controls
-    gfx.drawText(gfx.FONT_UI_10, mx + 20, rowY + 6, "Life Total: " .. p.life, C_BLACK)
+    if gfx and gfx.drawText then
+        gfx.drawText(gfx.FONT_UI_10, mx + 20, rowY + 6, "Life Total: " .. safeNum(p.life, 40), C_BLACK)
+    end
     local btnX = mx + 200
     local lifeDeltas = {-10, -5, -1, 1, 5, 10}
     for _, delta in ipairs(lifeDeltas) do
@@ -788,34 +991,44 @@ local function drawPlayerDetailModal(w, h)
 
     -- Row 2: Poison Counters
     rowY = rowY + 44
-    local poisStr = "Poison Counters: " .. p.poison .. (p.poison >= 10 and " [LETHAL!]" or "")
-    gfx.drawText(gfx.FONT_UI_10, mx + 20, rowY + 6, poisStr, C_BLACK)
+    local pCount = safeNum(p.poison, 0)
+    local poisStr = "Poison Counters: " .. pCount .. (pCount >= 10 and " [LETHAL!]" or "")
+    if gfx and gfx.drawText then
+        gfx.drawText(gfx.FONT_UI_10, mx + 20, rowY + 6, poisStr, C_BLACK)
+    end
     btnX = mx + 200
     drawButton(btnX, rowY, 44, 32, "-", gfx.FONT_UI_10, C_BLACK, false)
     drawButton(btnX + 50, rowY, 44, 32, "+", gfx.FONT_UI_10, C_BLACK, false)
 
     -- Row 3: Commander Damage Received
     rowY = rowY + 44
-    gfx.drawText(gfx.FONT_UI_10, mx + 20, rowY + 6, "Commander Damage:", C_BLACK)
+    if gfx and gfx.drawText then
+        gfx.drawText(gfx.FONT_UI_10, mx + 20, rowY + 6, "Commander Damage:", C_BLACK)
+    end
     btnX = mx + 200
-    for opp = 1, state.playerCount do
+    local pc = math.max(1, math.min(4, safeInt(state.playerCount, 4)))
+    for opp = 1, pc do
         if opp ~= p.id then
-            local dmg = p.cmdrDmg[opp] or 0
+            local dmg = safeNum(p.cmdrDmg and p.cmdrDmg[opp], 0)
             local oppName = "P" .. opp
             local cw = 94
             local isLethal = (dmg >= 21)
             if isLethal then
                 fillRounded(btnX, rowY - 2, cw, 34, 6, C_BLACK)
                 local valText = oppName .. ":" .. dmg
-                local vw = gfx.getTextWidth(gfx.FONT_SMALL, valText)
-                gfx.drawText(gfx.FONT_SMALL, btnX + math.floor((cw - vw) / 2), rowY + 6, valText, C_WHITE)
+                local vw = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_SMALL, valText)) or 30)
+                if gfx and gfx.drawText then
+                    gfx.drawText(gfx.FONT_SMALL, btnX + math.floor((cw - vw) / 2), rowY + 6, valText, C_WHITE)
+                end
                 drawButton(btnX + 3, rowY + 2, 24, 26, "-", gfx.FONT_SMALL, C_WHITE, false)
                 drawButton(btnX + cw - 27, rowY + 2, 24, 26, "+", gfx.FONT_SMALL, C_WHITE, false)
             else
                 drawRounded(btnX, rowY - 2, cw, 34, 6, 1, C_BLACK)
                 local valText = oppName .. ":" .. dmg
-                local vw = gfx.getTextWidth(gfx.FONT_SMALL, valText)
-                gfx.drawText(gfx.FONT_SMALL, btnX + math.floor((cw - vw) / 2), rowY + 6, valText, C_BLACK)
+                local vw = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_SMALL, valText)) or 30)
+                if gfx and gfx.drawText then
+                    gfx.drawText(gfx.FONT_SMALL, btnX + math.floor((cw - vw) / 2), rowY + 6, valText, C_BLACK)
+                end
                 drawButton(btnX + 3, rowY + 2, 24, 26, "-", gfx.FONT_SMALL, C_BLACK, false)
                 drawButton(btnX + cw - 27, rowY + 2, 24, 26, "+", gfx.FONT_SMALL, C_BLACK, false)
             end
@@ -825,28 +1038,36 @@ local function drawPlayerDetailModal(w, h)
 
     -- Row 4: Commander Tax, Energy, Experience
     rowY = rowY + 44
-    -- Tax
-    local taxLabel = "Tax: " .. p.tax .. " (+" .. (p.tax * 2) .. ")"
-    gfx.drawText(gfx.FONT_SMALL, mx + 20, rowY + 6, taxLabel, C_BLACK)
+    local pTax = safeNum(p.tax, 0)
+    local taxLabel = "Tax: " .. pTax .. " (+" .. (pTax * 2) .. ")"
+    if gfx and gfx.drawText then
+        gfx.drawText(gfx.FONT_SMALL, mx + 20, rowY + 6, taxLabel, C_BLACK)
+    end
     drawButton(mx + 130, rowY, 32, 28, "-", gfx.FONT_SMALL, C_BLACK, false)
     drawButton(mx + 168, rowY, 32, 28, "+", gfx.FONT_SMALL, C_BLACK, false)
 
     -- Energy
-    local energyLabel = "Energy: " .. p.energy
-    gfx.drawText(gfx.FONT_SMALL, mx + 224, rowY + 6, energyLabel, C_BLACK)
+    local energyLabel = "Energy: " .. safeNum(p.energy, 0)
+    if gfx and gfx.drawText then
+        gfx.drawText(gfx.FONT_SMALL, mx + 224, rowY + 6, energyLabel, C_BLACK)
+    end
     drawButton(mx + 314, rowY, 32, 28, "-", gfx.FONT_SMALL, C_BLACK, false)
     drawButton(mx + 352, rowY, 32, 28, "+", gfx.FONT_SMALL, C_BLACK, false)
 
     -- Experience
-    local xpLabel = "XP: " .. p.experience
-    gfx.drawText(gfx.FONT_SMALL, mx + 408, rowY + 6, xpLabel, C_BLACK)
+    local xpLabel = "XP: " .. safeNum(p.experience, 0)
+    if gfx and gfx.drawText then
+        gfx.drawText(gfx.FONT_SMALL, mx + 408, rowY + 6, xpLabel, C_BLACK)
+    end
     drawButton(mx + 478, rowY, 32, 28, "-", gfx.FONT_SMALL, C_BLACK, false)
     drawButton(mx + 516, rowY, 32, 28, "+", gfx.FONT_SMALL, C_BLACK, false)
 
     -- Row 5: Storm count, Invert Theme, Link Checkbox
     rowY = rowY + 42
-    local stormLabel = "Storm Count: " .. p.storm
-    gfx.drawText(gfx.FONT_SMALL, mx + 20, rowY + 6, stormLabel, C_BLACK)
+    local stormLabel = "Storm Count: " .. safeNum(p.storm, 0)
+    if gfx and gfx.drawText then
+        gfx.drawText(gfx.FONT_SMALL, mx + 20, rowY + 6, stormLabel, C_BLACK)
+    end
     drawButton(mx + 130, rowY, 32, 28, "-", gfx.FONT_SMALL, C_BLACK, false)
     drawButton(mx + 168, rowY, 32, 28, "+", gfx.FONT_SMALL, C_BLACK, false)
 
@@ -859,11 +1080,15 @@ local function drawPlayerDetailModal(w, h)
 
     -- Auto-link Cmdr Damage to Life Checkbox
     local linkText = ui.linkCmdrDamage and "[X] Cmdr Dmg reduces life" or "[ ] Cmdr Dmg reduces life"
-    gfx.drawText(gfx.FONT_SMALL, mx + 476, rowY + 6, linkText, C_BLACK)
+    if gfx and gfx.drawText then
+        gfx.drawText(gfx.FONT_SMALL, mx + 476, rowY + 6, linkText, C_BLACK)
+    end
 end
 
 -- 3. Reset Game Confirmation Modal
 local function drawResetModal(w, h)
+    w = safeNum(w, 800)
+    h = safeNum(h, 480)
     local mw = 440
     local mh = 280
     local mx = math.floor((w - mw) / 2)
@@ -873,15 +1098,21 @@ local function drawResetModal(w, h)
     drawRounded(mx, my, mw, mh, 16, 3, C_BLACK)
 
     -- Title
-    gfx.fillRect(mx + 3, my + 3, mw - 6, 38, C_BLACK)
+    if gfx and gfx.fillRect then
+        gfx.fillRect(mx + 3, my + 3, mw - 6, 38, C_BLACK)
+    end
     local title = "RESET GAME"
-    local tw = gfx.getTextWidth(gfx.FONT_UI_10, title)
-    gfx.drawText(gfx.FONT_UI_10, mx + math.floor((mw - tw) / 2), my + 11, title, C_WHITE)
+    local tw = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_UI_10, title)) or 60)
+    if gfx and gfx.drawText then
+        gfx.drawText(gfx.FONT_UI_10, mx + math.floor((mw - tw) / 2), my + 11, title, C_WHITE)
+    end
 
     local cy = my + 54
     local subtitle = "Select starting life total for all players:"
-    local sw = gfx.getTextWidth(gfx.FONT_SMALL, subtitle)
-    gfx.drawText(gfx.FONT_SMALL, mx + math.floor((mw - sw) / 2), cy, subtitle, C_BLACK)
+    local sw = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_SMALL, subtitle)) or 140)
+    if gfx and gfx.drawText then
+        gfx.drawText(gfx.FONT_SMALL, mx + math.floor((mw - sw) / 2), cy, subtitle, C_BLACK)
+    end
 
     -- Reset Options
     cy = cy + 28
@@ -900,6 +1131,8 @@ end
 
 -- 4. Player Count Selector Modal
 local function drawPlayerCountModal(w, h)
+    w = safeNum(w, 800)
+    h = safeNum(h, 480)
     local mw = 360
     local mh = 260
     local mx = math.floor((w - mw) / 2)
@@ -908,19 +1141,24 @@ local function drawPlayerCountModal(w, h)
     fillRounded(mx, my, mw, mh, 16, C_WHITE)
     drawRounded(mx, my, mw, mh, 16, 3, C_BLACK)
 
-    gfx.fillRect(mx + 3, my + 3, mw - 6, 38, C_BLACK)
+    if gfx and gfx.fillRect then
+        gfx.fillRect(mx + 3, my + 3, mw - 6, 38, C_BLACK)
+    end
     local title = "SELECT PLAYERS"
-    local tw = gfx.getTextWidth(gfx.FONT_UI_10, title)
-    gfx.drawText(gfx.FONT_UI_10, mx + math.floor((mw - tw) / 2), my + 11, title, C_WHITE)
+    local tw = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_UI_10, title)) or 80)
+    if gfx and gfx.drawText then
+        gfx.drawText(gfx.FONT_UI_10, mx + math.floor((mw - tw) / 2), my + 11, title, C_WHITE)
+    end
 
     local cy = my + 54
     local btnW = 280
     local btnH = 38
     local bx = mx + math.floor((mw - btnW) / 2)
 
+    local curPc = math.max(1, math.min(4, safeInt(state.playerCount, 4)))
     for c = 1, 4 do
         local label = c .. " Player" .. (c > 1 and "s" or "")
-        if state.playerCount == c then
+        if curPc == c then
             drawButton(bx, cy, btnW, btnH, label .. " (Active)", gfx.FONT_UI_10, C_BLACK, true)
         else
             drawButton(bx, cy, btnW, btnH, label, gfx.FONT_UI_10, C_BLACK, false)
@@ -935,25 +1173,23 @@ end
 -- Lifecycle Callback: onDraw()
 -- ---------------------------------------------------------------------------
 function onDraw()
-    local w = gfx.getWidth()
-    local h = gfx.getHeight()
+    local w = (gfx and gfx.getWidth and gfx.getWidth()) or 800
+    local h = (gfx and gfx.getHeight and gfx.getHeight()) or 480
 
-    -- Clear screen (1 = White)
-    gfx.clearScreen(1)
+    if gfx and gfx.clearScreen then
+        gfx.clearScreen(1)
+    end
 
-    -- Calculate layouts
-    local rects, headerH = getCardRects(w, h, state.playerCount)
+    local count = math.max(1, math.min(4, safeInt(state.playerCount, 4)))
+    local rects, headerH = getCardRects(w, h, count)
 
-    -- Draw player cards
-    for i = 1, state.playerCount do
-        local isSel = (state.selectedPlayer == i)
+    for i = 1, count do
+        local isSel = (safeInt(state.selectedPlayer, 1) == i)
         drawPlayerCard(state.players[i], rects[i], isSel)
     end
 
-    -- Top Navigation Bar
     drawTopBar(w, headerH)
 
-    -- Active Modals
     if ui.modal == "tools" then
         drawToolsModal(w, h)
     elseif ui.modal == "player_detail" then
@@ -969,24 +1205,29 @@ end
 -- Lifecycle Callback: onSleepDraw() - E-Ink Persistent Lockscreen
 -- ---------------------------------------------------------------------------
 function onSleepDraw()
-    local w = gfx.getWidth()
-    local h = gfx.getHeight()
+    local w = (gfx and gfx.getWidth and gfx.getWidth()) or 800
+    local h = (gfx and gfx.getHeight and gfx.getHeight()) or 480
 
-    gfx.clearScreen(1)
+    if gfx and gfx.clearScreen then
+        gfx.clearScreen(1)
+    end
 
-    -- Header Banner
-    gfx.fillRect(0, 0, w, 44, C_BLACK)
+    if gfx and gfx.fillRect then
+        gfx.fillRect(0, 0, w, 44, C_BLACK)
+    end
     local headerText = "SPELL COUNTER - GAME PAUSED"
-    local hw = gfx.getTextWidth(gfx.FONT_UI_12, headerText)
-    gfx.drawText(gfx.FONT_UI_12, math.floor((w - hw) / 2), 8, headerText, C_WHITE)
+    local hw = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_UI_12, headerText)) or 140)
+    if gfx and gfx.drawText then
+        gfx.drawText(gfx.FONT_UI_12, math.floor((w - hw) / 2), 8, headerText, C_WHITE)
+    end
 
-    -- Subtitle
     local subText = "Match state preserved on E-Ink display | Press power button to resume"
-    local sw = gfx.getTextWidth(gfx.FONT_SMALL, subText)
-    gfx.drawText(gfx.FONT_SMALL, math.floor((w - sw) / 2), 50, subText, C_BLACK)
+    local sw = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_SMALL, subText)) or 180)
+    if gfx and gfx.drawText then
+        gfx.drawText(gfx.FONT_SMALL, math.floor((w - sw) / 2), 50, subText, C_BLACK)
+    end
 
-    -- Player cards summary in 2x2 or grid
-    local count = state.playerCount
+    local count = math.max(1, math.min(4, safeInt(state.playerCount, 4)))
     local availY = 74
     local availH = h - availY - 30
 
@@ -994,7 +1235,7 @@ function onSleepDraw()
     local rowH = math.floor((availH - 16) / (count >= 3 and 2 or 1))
 
     for i = 1, count do
-        local p = state.players[i]
+        local p = ensurePlayer(state.players[i], i, state.startingLife)
         local cCol = ((i - 1) % 2)
         local cRow = math.floor((i - 1) / 2)
         local px = 8 + cCol * (colW + 8)
@@ -1002,13 +1243,13 @@ function onSleepDraw()
 
         drawRounded(px, py, colW, rowH, 12, 2, C_BLACK)
 
-        -- Header
-        local pName = (p and p.name) or ("Player " .. i)
+        local pName = safeText(p.name, "Player " .. i)
         if state.monarch == i then pName = pName .. " [CROWN]" end
         if state.initiative == i then pName = pName .. " [INIT]" end
-        gfx.drawText(gfx.FONT_UI_10, px + 12, py + 8, pName, C_BLACK)
+        if gfx and gfx.drawText then
+            gfx.drawText(gfx.FONT_UI_10, px + 12, py + 8, pName, C_BLACK)
+        end
 
-        -- Big Life Number
         local lifeY = py + math.floor(rowH / 2)
         local lifeX = px + math.floor(colW / 2)
         local digitH = math.min(52, rowH - 46)
@@ -1016,29 +1257,36 @@ function onSleepDraw()
         local strokeW = 6
         drawBigNumber(lifeX, lifeY, p.life, digitW, digitH, strokeW, C_BLACK)
 
-        -- Bottom stats
-        local statStr = "Poison: " .. p.poison
+        local statStr = "Poison: " .. safeNum(p.poison, 0)
         local maxCmdr = 0
         for _, d in ipairs(p.cmdrDmg or {}) do
-            if d > maxCmdr then maxCmdr = d end
+            local val = safeNum(d, 0)
+            if val > maxCmdr then maxCmdr = val end
         end
         if maxCmdr > 0 then statStr = statStr .. "  |  Cmdr: " .. maxCmdr end
-        if p.tax > 0 then statStr = statStr .. "  |  Tax: +" .. (p.tax * 2) end
-        gfx.drawText(gfx.FONT_SMALL, px + 12, py + rowH - 22, statStr, C_BLACK)
+        local pTax = safeNum(p.tax, 0)
+        if pTax > 0 then statStr = statStr .. "  |  Tax: +" .. (pTax * 2) end
+        if gfx and gfx.drawText then
+            gfx.drawText(gfx.FONT_SMALL, px + 12, py + rowH - 22, statStr, C_BLACK)
+        end
     end
 
-    -- Bottom footer
     local footText = "CrossPoint Reader Ecosystem"
-    local fw = gfx.getTextWidth(gfx.FONT_SMALL, footText)
-    gfx.drawText(gfx.FONT_SMALL, math.floor((w - fw) / 2), h - 22, footText, C_BLACK)
+    local fw = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_SMALL, footText)) or 80)
+    if gfx and gfx.drawText then
+        gfx.drawText(gfx.FONT_SMALL, math.floor((w - fw) / 2), h - 22, footText, C_BLACK)
+    end
 end
 
 -- ---------------------------------------------------------------------------
 -- Lifecycle Callback: onTouch(x, y)
 -- ---------------------------------------------------------------------------
 function onTouch(x, y)
-    local w = gfx.getWidth()
-    local h = gfx.getHeight()
+    x = safeNum(x, 0)
+    y = safeNum(y, 0)
+    local w = (gfx and gfx.getWidth and gfx.getWidth()) or 800
+    local h = (gfx and gfx.getHeight and gfx.getHeight()) or 480
+    local pc = math.max(1, math.min(4, safeInt(state.playerCount, 4)))
 
     -- -----------------------------------------------------------------------
     -- 1. Handle Active Modals
@@ -1049,15 +1297,13 @@ function onTouch(x, y)
         local mx = math.floor((w - mw) / 2)
         local my = math.floor((h - mh) / 2)
 
-        -- Close button [X]
         local closeX = mx + mw - 46
         if x >= closeX and x <= closeX + 36 and y >= my + 7 and y <= my + 35 then
             ui.modal = nil
-            crosspoint.requestUpdate()
+            if crosspoint and crosspoint.requestUpdate then crosspoint.requestUpdate() end
             return
         end
 
-        -- Tab switches
         local tabY = my + 48
         local tabW = math.floor((mw - 40) / 3)
         if y >= tabY and y <= tabY + 30 then
@@ -1068,18 +1314,16 @@ function onTouch(x, y)
             elseif x >= mx + 24 + tabW * 2 and x <= mx + 24 + tabW * 3 then
                 ui.toolsTab = "history"
             end
-            crosspoint.requestUpdate()
+            if crosspoint and crosspoint.requestUpdate then crosspoint.requestUpdate() end
             return
         end
 
-        -- Tab 1 Action clicks: Dice
         local contentY = tabY + 42
         if ui.toolsTab == "dice" and y >= contentY and y <= contentY + 38 then
             local btnW = 126
             local bx = mx + 24
-            -- Roll D20
             if x >= bx and x <= bx + btnW then
-                math.randomseed(crosspoint.millis())
+                math.randomseed((crosspoint and crosspoint.millis and crosspoint.millis()) or 12345)
                 local roll = math.random(1, 20)
                 ui.diceResult = {type = "D20", val = roll}
                 ui.firstPlayerResult = nil
@@ -1087,10 +1331,9 @@ function onTouch(x, y)
                 saveState()
                 return
             end
-            -- Roll D6
             bx = bx + btnW + 16
             if x >= bx and x <= bx + btnW then
-                math.randomseed(crosspoint.millis())
+                math.randomseed((crosspoint and crosspoint.millis and crosspoint.millis()) or 12345)
                 local roll = math.random(1, 6)
                 ui.diceResult = {type = "D6", val = roll}
                 ui.firstPlayerResult = nil
@@ -1098,10 +1341,9 @@ function onTouch(x, y)
                 saveState()
                 return
             end
-            -- Flip Coin
             bx = bx + btnW + 16
             if x >= bx and x <= bx + btnW then
-                math.randomseed(crosspoint.millis())
+                math.randomseed((crosspoint and crosspoint.millis and crosspoint.millis()) or 12345)
                 local flip = math.random(1, 2) == 1 and "HEADS" or "TAILS"
                 ui.diceResult = {type = "COIN", val = flip}
                 ui.firstPlayerResult = nil
@@ -1109,37 +1351,33 @@ function onTouch(x, y)
                 saveState()
                 return
             end
-            -- Who Goes First?
             bx = bx + btnW + 16
             if x >= bx and x <= bx + btnW then
-                math.randomseed(crosspoint.millis())
-                local fp = math.random(1, state.playerCount)
+                math.randomseed((crosspoint and crosspoint.millis and crosspoint.millis()) or 12345)
+                local fp = math.random(1, pc)
                 ui.firstPlayerResult = fp
                 ui.diceResult = nil
-                local pName = state.players[fp] and state.players[fp].name or ("P" .. fp)
-                addHistory("First player: " .. pName)
+                local fpPlayer = ensurePlayer(state.players[fp], fp, state.startingLife)
+                addHistory("First player: " .. safeText(fpPlayer.name, "P" .. fp))
                 saveState()
                 return
             end
         end
 
-        -- Tab 2 Action clicks: Tokens (Monarch, Initiative, Day/Night)
         if ui.toolsTab == "tokens" then
             local rowY = contentY + 4
-            -- Monarch row
             if y >= rowY and y <= rowY + 32 then
                 local btnX = mx + 160
-                for i = 1, state.playerCount do
+                for i = 1, pc do
                     if x >= btnX and x <= btnX + 52 then
                         state.monarch = (state.monarch == i) and nil or i
-                        local pName = state.players[i] and state.players[i].name or ("P" .. i)
-                        addHistory("Monarch: " .. (state.monarch and pName or "None"))
+                        local pP = ensurePlayer(state.players[i], i, state.startingLife)
+                        addHistory("Monarch: " .. (state.monarch and pP.name or "None"))
                         saveState()
                         return
                     end
                     btnX = btnX + 60
                 end
-                -- Clear Monarch
                 if x >= btnX and x <= btnX + 68 then
                     state.monarch = nil
                     addHistory("Monarch cleared")
@@ -1148,21 +1386,19 @@ function onTouch(x, y)
                 end
             end
 
-            -- Initiative row
             rowY = rowY + 48
             if y >= rowY and y <= rowY + 32 then
                 local btnX = mx + 160
-                for i = 1, state.playerCount do
+                for i = 1, pc do
                     if x >= btnX and x <= btnX + 52 then
                         state.initiative = (state.initiative == i) and nil or i
-                        local pName = state.players[i] and state.players[i].name or ("P" .. i)
-                        addHistory("Initiative: " .. (state.initiative and pName or "None"))
+                        local pP = ensurePlayer(state.players[i], i, state.startingLife)
+                        addHistory("Initiative: " .. (state.initiative and pP.name or "None"))
                         saveState()
                         return
                     end
                     btnX = btnX + 60
                 end
-                -- Clear Initiative
                 if x >= btnX and x <= btnX + 68 then
                     state.initiative = nil
                     addHistory("Initiative cleared")
@@ -1171,7 +1407,6 @@ function onTouch(x, y)
                 end
             end
 
-            -- Day / Night row
             rowY = rowY + 48
             if y >= rowY and y <= rowY + 32 then
                 local btnX = mx + 160
@@ -1188,39 +1423,37 @@ function onTouch(x, y)
             end
         end
 
-        -- Tap outside modal to dismiss
         if x < mx or x > mx + mw or y < my or y > my + mh then
             ui.modal = nil
-            crosspoint.requestUpdate()
+            if crosspoint and crosspoint.requestUpdate then crosspoint.requestUpdate() end
             return
         end
         return
     end
 
     if ui.modal == "player_detail" then
-        local p = state.players[ui.detailPlayer]
-        if not p then ui.modal = nil return end
+        local dIdx = math.max(1, math.min(4, safeInt(ui.detailPlayer, 1)))
+        local p = ensurePlayer(state.players[dIdx], dIdx, state.startingLife or 40)
+        state.players[dIdx] = p
 
         local mw = math.min(680, w - 30)
         local mh = math.min(430, h - 20)
         local mx = math.floor((w - mw) / 2)
         local my = math.floor((h - mh) / 2)
 
-        -- Close [X]
         local closeX = mx + mw - 46
         if x >= closeX and x <= closeX + 36 and y >= my + 7 and y <= my + 35 then
             ui.modal = nil
-            crosspoint.requestUpdate()
+            if crosspoint and crosspoint.requestUpdate then crosspoint.requestUpdate() end
             return
         end
 
-        -- Cycle Name button
         local nameBtnW = 110
         local nameBtnX = mx + mw - nameBtnW - 56
         if x >= nameBtnX and x <= nameBtnX + nameBtnW and y >= my + 7 and y <= my + 35 then
             local list = PRESET_NAMES[p.id] or {"Player " .. p.id}
-            p.nameIdx = ((p.nameIdx or 1) % #list) + 1
-            p.name = list[p.nameIdx]
+            p.nameIdx = (safeInt(p.nameIdx, 1) % #list) + 1
+            p.name = list[p.nameIdx] or ("P" .. p.id)
             saveState()
             return
         end
@@ -1257,7 +1490,7 @@ function onTouch(x, y)
         rowY = rowY + 44
         if y >= rowY - 2 and y <= rowY + 32 then
             local btnX = mx + 200
-            for opp = 1, state.playerCount do
+            for opp = 1, pc do
                 if opp ~= p.id then
                     local cw = 94
                     if x >= btnX and x <= btnX + cw then
@@ -1276,34 +1509,28 @@ function onTouch(x, y)
         -- Row 4: Commander Tax, Energy, Experience
         rowY = rowY + 44
         if y >= rowY and y <= rowY + 28 then
-            -- Tax -
             if x >= mx + 130 and x <= mx + 162 then
-                p.tax = math.max(0, p.tax - 1)
+                p.tax = math.max(0, safeNum(p.tax, 0) - 1)
                 saveState()
                 return
-            -- Tax +
             elseif x >= mx + 168 and x <= mx + 200 then
-                p.tax = p.tax + 1
+                p.tax = safeNum(p.tax, 0) + 1
                 saveState()
                 return
-            -- Energy -
             elseif x >= mx + 314 and x <= mx + 346 then
-                p.energy = math.max(0, p.energy - 1)
+                p.energy = math.max(0, safeNum(p.energy, 0) - 1)
                 saveState()
                 return
-            -- Energy +
             elseif x >= mx + 352 and x <= mx + 384 then
-                p.energy = p.energy + 1
+                p.energy = safeNum(p.energy, 0) + 1
                 saveState()
                 return
-            -- XP -
             elseif x >= mx + 478 and x <= mx + 510 then
-                p.experience = math.max(0, p.experience - 1)
+                p.experience = math.max(0, safeNum(p.experience, 0) - 1)
                 saveState()
                 return
-            -- XP +
             elseif x >= mx + 516 and x <= mx + 548 then
-                p.experience = p.experience + 1
+                p.experience = safeNum(p.experience, 0) + 1
                 saveState()
                 return
             end
@@ -1312,27 +1539,22 @@ function onTouch(x, y)
         -- Row 5: Storm count, Invert Theme, Link Checkbox
         rowY = rowY + 42
         if y >= rowY and y <= rowY + 28 then
-            -- Storm -
             if x >= mx + 130 and x <= mx + 162 then
-                p.storm = math.max(0, p.storm - 1)
+                p.storm = math.max(0, safeNum(p.storm, 0) - 1)
                 saveState()
                 return
-            -- Storm +
             elseif x >= mx + 168 and x <= mx + 200 then
-                p.storm = p.storm + 1
+                p.storm = safeNum(p.storm, 0) + 1
                 saveState()
                 return
-            -- Reset Storm
             elseif x >= mx + 206 and x <= mx + 290 then
                 p.storm = 0
                 saveState()
                 return
-            -- Invert theme
             elseif x >= mx + 304 and x <= mx + 464 then
                 p.inverted = not p.inverted
                 saveState()
                 return
-            -- Link Cmdr Dmg checkbox
             elseif x >= mx + 476 and x <= mx + mw - 10 then
                 ui.linkCmdrDamage = not ui.linkCmdrDamage
                 saveState()
@@ -1340,10 +1562,9 @@ function onTouch(x, y)
             end
         end
 
-        -- Tap outside
         if x < mx or x > mx + mw or y < my or y > my + mh then
             ui.modal = nil
-            crosspoint.requestUpdate()
+            if crosspoint and crosspoint.requestUpdate then crosspoint.requestUpdate() end
             return
         end
         return
@@ -1358,14 +1579,12 @@ function onTouch(x, y)
         local bx = mx + math.floor((mw - btnW) / 2)
         local cy = my + 82
 
-        -- 40 Life (Commander)
         if x >= bx and x <= bx + btnW and y >= cy and y <= cy + 40 then
             initNewGame(40, state.playerCount)
             ui.modal = nil
             saveState()
             return
         end
-        -- 20 Life (Standard)
         cy = cy + 48
         if x >= bx and x <= bx + btnW and y >= cy and y <= cy + 40 then
             initNewGame(20, state.playerCount)
@@ -1373,7 +1592,6 @@ function onTouch(x, y)
             saveState()
             return
         end
-        -- 30 Life (Brawl)
         cy = cy + 48
         if x >= bx and x <= bx + btnW and y >= cy and y <= cy + 40 then
             initNewGame(30, state.playerCount)
@@ -1381,17 +1599,15 @@ function onTouch(x, y)
             saveState()
             return
         end
-        -- Cancel
         cy = cy + 48
         if x >= bx and x <= bx + btnW and y >= cy and y <= cy + 34 then
             ui.modal = nil
-            crosspoint.requestUpdate()
+            if crosspoint and crosspoint.requestUpdate then crosspoint.requestUpdate() end
             return
         end
-        -- Tap outside
         if x < mx or x > mx + mw or y < my or y > my + mh then
             ui.modal = nil
-            crosspoint.requestUpdate()
+            if crosspoint and crosspoint.requestUpdate then crosspoint.requestUpdate() end
             return
         end
         return
@@ -1409,22 +1625,21 @@ function onTouch(x, y)
         for c = 1, 4 do
             if x >= bx and x <= bx + btnW and y >= cy and y <= cy + 38 then
                 state.playerCount = c
+                state.selectedPlayer = math.min(safeInt(state.selectedPlayer, 1), c)
                 ui.modal = nil
                 saveState()
                 return
             end
             cy = cy + 44
         end
-        -- Close button
         if x >= bx and x <= bx + btnW and y >= cy and y <= cy + 30 then
             ui.modal = nil
-            crosspoint.requestUpdate()
+            if crosspoint and crosspoint.requestUpdate then crosspoint.requestUpdate() end
             return
         end
-        -- Tap outside
         if x < mx or x > mx + mw or y < my or y > my + mh then
             ui.modal = nil
-            crosspoint.requestUpdate()
+            if crosspoint and crosspoint.requestUpdate then crosspoint.requestUpdate() end
             return
         end
         return
@@ -1433,35 +1648,33 @@ function onTouch(x, y)
     -- -----------------------------------------------------------------------
     -- 2. Handle Top Bar Buttons
     -- -----------------------------------------------------------------------
-    local rects, headerH = getCardRects(w, h, state.playerCount)
+    local rects, headerH = getCardRects(w, h, pc)
     if y <= headerH then
-        -- Left: Player Count selector button
-        local pcText = state.playerCount .. " Player" .. (state.playerCount > 1 and "s" or "")
-        local pcW = gfx.getTextWidth(gfx.FONT_UI_10, pcText) + 16
+        local pcText = pc .. " Player" .. (pc > 1 and "s" or "")
+        local pcW = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_UI_10, pcText)) or 60) + 16
         if x >= 10 and x <= 10 + pcW then
             ui.modal = "player_count"
-            crosspoint.requestUpdate()
+            if crosspoint and crosspoint.requestUpdate then crosspoint.requestUpdate() end
             return
         end
 
-        -- Right Buttons: [Reset] & [Tools]
         local rightX = w - 10
         local toolsText = "Tools"
-        local toolsW = gfx.getTextWidth(gfx.FONT_UI_10, toolsText) + 16
+        local toolsW = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_UI_10, toolsText)) or 36) + 16
         rightX = rightX - toolsW
         if x >= rightX and x <= rightX + toolsW then
             ui.modal = "tools"
-            crosspoint.requestUpdate()
+            if crosspoint and crosspoint.requestUpdate then crosspoint.requestUpdate() end
             return
         end
 
         rightX = rightX - 8
         local resetText = "Reset"
-        local resetW = gfx.getTextWidth(gfx.FONT_UI_10, resetText) + 16
+        local resetW = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_UI_10, resetText)) or 36) + 16
         rightX = rightX - resetW
         if x >= rightX and x <= rightX + resetW then
             ui.modal = "reset"
-            crosspoint.requestUpdate()
+            if crosspoint and crosspoint.requestUpdate then crosspoint.requestUpdate() end
             return
         end
         return
@@ -1470,70 +1683,66 @@ function onTouch(x, y)
     -- -----------------------------------------------------------------------
     -- 3. Handle Player Card Interactions
     -- -----------------------------------------------------------------------
-    for i = 1, state.playerCount do
+    for i = 1, pc do
         local r = rects[i]
-        if x >= r.x and x <= r.x + r.w and y >= r.y and y <= r.y + r.h then
+        if r and type(r) == "table" and x >= (r.x or 0) and x <= (r.x or 0) + (r.w or 0) and y >= (r.y or 0) and y <= (r.y or 0) + (r.h or 0) then
             state.selectedPlayer = i
 
             -- Card Menu / Counter detail icon [···] top right
             local menuBtnW = 44
             local menuBtnH = 24
-            local menuBtnX = r.x + r.w - menuBtnW - 8
-            local menuBtnY = r.y + 4
+            local menuBtnX = (r.x or 0) + (r.w or 0) - menuBtnW - 8
+            local menuBtnY = (r.y or 0) + 4
             if x >= menuBtnX and x <= menuBtnX + menuBtnW and y >= menuBtnY and y <= menuBtnY + menuBtnH then
                 ui.detailPlayer = i
                 ui.modal = "player_detail"
-                crosspoint.requestUpdate()
+                if crosspoint and crosspoint.requestUpdate then crosspoint.requestUpdate() end
                 return
             end
 
             -- Bottom Counters Strip (Poison, Commander, Tax)
             local stripH = 34
-            local stripY = r.y + r.h - stripH - 4
+            local stripY = (r.y or 0) + (r.h or 0) - stripH - 4
             if y >= stripY then
-                local cx = r.x + 12
-                -- Poison chip tap (+1 poison)
-                local pStr = "P: " .. state.players[i].poison
-                local pw = gfx.getTextWidth(gfx.FONT_SMALL, pStr) + 16
+                local cx = (r.x or 0) + 12
+                local p = ensurePlayer(state.players[i], i, state.startingLife)
+                local pStr = "P: " .. safeNum(p.poison, 0)
+                local pw = ((gfx and gfx.getTextWidth and gfx.getTextWidth(gfx.FONT_SMALL, pStr)) or 30) + 16
                 if x >= cx and x <= cx + pw then
                     changePoison(i, 1)
                     return
                 end
                 cx = cx + pw + 8
 
-                -- Cmdr dmg chip tap (opens detail)
                 local cw = 70
                 if x >= cx and x <= cx + cw then
                     ui.detailPlayer = i
                     ui.modal = "player_detail"
-                    crosspoint.requestUpdate()
+                    if crosspoint and crosspoint.requestUpdate then crosspoint.requestUpdate() end
                     return
                 end
 
-                -- Otherwise open player details
                 ui.detailPlayer = i
                 ui.modal = "player_detail"
-                crosspoint.requestUpdate()
+                if crosspoint and crosspoint.requestUpdate then crosspoint.requestUpdate() end
                 return
             end
 
             -- Quick +/- 5 buttons if present
             local cardHeaderH = 30
-            local lifeCenterY = r.y + cardHeaderH + math.floor((r.h - cardHeaderH - 42) / 2)
-            local btnSize = math.min(46, math.floor(r.h * 0.28))
-            local minusX = r.x + 14
-            local plusX = r.x + r.w - btnSize - 14
+            local lifeCenterY = (r.y or 0) + cardHeaderH + math.floor(((r.h or 0) - cardHeaderH - 42) / 2)
+            local btnSize = math.min(46, math.floor((r.h or 0) * 0.28))
+            local minusX = (r.x or 0) + 14
+            local plusX = (r.x or 0) + (r.w or 0) - btnSize - 14
             local btnY = lifeCenterY - math.floor(btnSize / 2)
             local pillW = 38
             local pillH = 22
             local pillY = btnY + btnSize + 6
 
-            if r.h >= 180 and y >= pillY and y <= pillY + pillH then
-                -- -5 pill
+            if (r.h or 0) >= 180 and y >= pillY and y <= pillY + pillH then
                 if x >= minusX and x <= minusX + btnSize then
                     changeLife(i, -5)
                     return
-                -- +5 pill
                 elseif x >= plusX and x <= plusX + btnSize then
                     changeLife(i, 5)
                     return
@@ -1541,10 +1750,8 @@ function onTouch(x, y)
             end
 
             -- Main Life +/- Buttons / Half-card tap
-            -- Left side: -1 Life
-            if x < r.x + math.floor(r.w / 2) then
+            if x < (r.x or 0) + math.floor((r.w or 0) / 2) then
                 changeLife(i, -1)
-            -- Right side: +1 Life
             else
                 changeLife(i, 1)
             end
@@ -1561,30 +1768,32 @@ function onInput(button, isDown)
         return
     end
 
-    local sel = state.selectedPlayer or 1
+    button = safeNum(button, -1)
+    local pc = math.max(1, math.min(4, safeInt(state.playerCount, 4)))
+    local sel = math.max(1, math.min(pc, safeInt(state.selectedPlayer, 1)))
 
-    if button == input.BTN_CONFIRM then
+    if input and button == input.BTN_CONFIRM then
         if ui.modal == nil then
             ui.detailPlayer = sel
             ui.modal = "player_detail"
-            crosspoint.requestUpdate()
+            if crosspoint and crosspoint.requestUpdate then crosspoint.requestUpdate() end
         else
             ui.modal = nil
-            crosspoint.requestUpdate()
+            if crosspoint and crosspoint.requestUpdate then crosspoint.requestUpdate() end
         end
-    elseif button == input.BTN_UP or button == input.BTN_PAGE_BACK then
+    elseif input and (button == input.BTN_UP or button == input.BTN_PAGE_BACK) then
         if ui.modal == nil then
             changeLife(sel, 1)
         end
-    elseif button == input.BTN_DOWN or button == input.BTN_PAGE_FORWARD then
+    elseif input and (button == input.BTN_DOWN or button == input.BTN_PAGE_FORWARD) then
         if ui.modal == nil then
             changeLife(sel, -1)
         end
-    elseif button == input.BTN_RIGHT then
-        state.selectedPlayer = (sel % state.playerCount) + 1
+    elseif input and button == input.BTN_RIGHT then
+        state.selectedPlayer = (sel % pc) + 1
         saveState()
-    elseif button == input.BTN_LEFT then
-        state.selectedPlayer = ((sel - 2 + state.playerCount) % state.playerCount) + 1
+    elseif input and button == input.BTN_LEFT then
+        state.selectedPlayer = ((sel - 2 + pc) % pc) + 1
         saveState()
     end
 end
@@ -1595,7 +1804,7 @@ end
 function onBack()
     if ui.modal ~= nil then
         ui.modal = nil
-        crosspoint.requestUpdate()
+        if crosspoint and crosspoint.requestUpdate then crosspoint.requestUpdate() end
         return true
     end
     return false
@@ -1605,16 +1814,17 @@ end
 -- Lifecycle Callback: onUpdate(dt)
 -- ---------------------------------------------------------------------------
 function onUpdate(dt)
-    local now = crosspoint.millis()
+    local now = (crosspoint and crosspoint.millis and crosspoint.millis()) or 0
     local dirty = false
-    for i = 1, state.playerCount do
+    local pc = math.max(1, math.min(4, safeInt(state.playerCount, 4)))
+    for i = 1, pc do
         local p = state.players[i]
-        if p and p.delta ~= 0 and now >= p.deltaTimer then
+        if p and safeNum(p.delta, 0) ~= 0 and now >= safeNum(p.deltaTimer, 0) then
             p.delta = 0
             dirty = true
         end
     end
-    if dirty then
+    if dirty and crosspoint and crosspoint.requestUpdate then
         crosspoint.requestUpdate()
     end
 end
@@ -1624,12 +1834,29 @@ end
 -- ---------------------------------------------------------------------------
 function onEnter()
     loadState()
-    local curSleep = crosspoint.getSleepApp()
-    if curSleep == "" or curSleep == nil then
-        crosspoint.setSleepApp("spellcounter")
+    if crosspoint and crosspoint.getSleepApp and crosspoint.setSleepApp then
+        local curSleep = crosspoint.getSleepApp()
+        if curSleep == "" or curSleep == nil then
+            crosspoint.setSleepApp("spellcounter")
+        end
     end
 end
 
 function onExit()
     saveState()
+end
+
+-- Export for automated testing and inspection
+if _G then
+    _G._SPELLCOUNTER = {
+        state = state,
+        ui = ui,
+        saveState = saveState,
+        loadState = loadState,
+        initNewGame = initNewGame,
+        ensurePlayer = ensurePlayer,
+        changeLife = changeLife,
+        changePoison = changePoison,
+        changeCmdrDamage = changeCmdrDamage,
+    }
 end

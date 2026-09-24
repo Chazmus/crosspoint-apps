@@ -1,7 +1,7 @@
 {
   "name": "CrossPoint Official Apps",
   "description": "Curated community Lua applications for CrossPoint reader",
-  "version": 4,
+  "version": 5,
   "apps": [
     {
       "id": "chess",
@@ -35,7 +35,7 @@
     {
       "id": "spellcounter",
       "name": "Spell Counter",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": "Chazmus",
       "description": "MTG life and counter tracker for up to 4 players",
       "icon": "Blocks",
