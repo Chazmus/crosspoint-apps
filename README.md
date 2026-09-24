@@ -261,6 +261,9 @@ CrossPoint firmware streams logging over USB Serial (`115200` baud) via FreeRTOS
 | `crosspoint.log([tag], msg)` | `[tag], msg` | Backwards-compatible alias to `log.info`. |
 | `crosspoint.getMemoryInfo()` | *none* | Returns table with memory metrics: `{ luaMemoryKb = <int>, freeHeapKb = <int>, freePsramKb = <int> }`. |
 | `crosspoint.isWifiConnected()` | *none* | Returns `true` if Wi-Fi is active and connected to an AP. |
+| `crosspoint.connectWifi(callback)` | `callback(connected)` | Connects to Wi-Fi on-demand via modal `WifiSelectionActivity`, invoking `callback(true/false)`. |
+| `crosspoint.withWifi(callback)` | `callback(connected)` | Scoped Wi-Fi connection. Automatically connects on-demand and guarantees Wi-Fi disconnects upon return or error. |
+| `crosspoint.disconnectWifi()` | *none* | Disconnects Wi-Fi immediately to conserve battery. |
 | `crosspoint.httpGet(url)` | `urlString` | Performs an HTTP GET request over Wi-Fi (or libcurl in simulator). Returns response body string. |
 | `crosspoint.setSleepApp(appId)` | `appId` | Designates an app to render the E-Ink sleep screen. |
 | `crosspoint.getSleepApp()` | *none* | Returns the ID of the currently designated sleep app. |

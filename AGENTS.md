@@ -195,6 +195,9 @@ Apps can split complex logic across multiple files using standard Lua `require("
 - `crosspoint.log([tag], msg)`: Backwards-compatible alias to `log.info`.
 - `crosspoint.getMemoryInfo()`: Returns table with memory metrics: `{ luaMemoryKb = <int>, freeHeapKb = <int>, freePsramKb = <int> }`.
 - `crosspoint.isWifiConnected()`: Returns `true` if connected to Wi-Fi.
+- `crosspoint.connectWifi(callback)`: Connects to Wi-Fi on-demand via `WifiSelectionActivity` modal, invoking `callback(connected)`.
+- `crosspoint.withWifi(callback)`: Preferred RAII-style scoped Wi-Fi connection. Automatically connects on-demand and guarantees Wi-Fi disconnects when `callback(connected)` returns or throws an error.
+- `crosspoint.disconnectWifi()`: Disconnects Wi-Fi immediately to conserve battery.
 - `crosspoint.httpGet(url)`: Performs HTTP GET over Wi-Fi (or libcurl in simulator).
 - `crosspoint.setSleepApp(appId)`: Registers app for sleep screen takeover.
 - `crosspoint.getSleepApp()`: Returns current sleep app ID.

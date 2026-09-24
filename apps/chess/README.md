@@ -4,13 +4,13 @@ A daily tactical chess puzzle application for CrossPoint Reader (ESP32-S3 / E-In
 
 ![Category](https://img.shields.io/badge/Category-Games%20%26%20Puzzles-blue)
 ![Orientation](https://img.shields.io/badge/Orientation-Landscape%20(800x480)-green)
-![Version](https://img.shields.io/badge/Version-1.0.2-orange)
+![Version](https://img.shields.io/badge/Version-1.0.3-orange)
 
 ---
 
 ## Overview
 
-**Daily Chess** brings daily tactical chess training to your CrossPoint e-reader. It connects to Wi-Fi to fetch the daily puzzle from the [Lichess API](https://lichess.org/api#tag/Puzzles/operation/apiPuzzleDaily), or gracefully falls back to bundled offline puzzles if no internet connection is available.
+**Daily Chess** brings daily tactical chess training to your CrossPoint e-reader. It connects to Wi-Fi on-demand to fetch the daily puzzle from the [Lichess API](https://lichess.org/api#tag/Puzzles/operation/apiPuzzleDaily), automatically manages Wi-Fi lifecycle to conserve battery, and gracefully falls back to bundled offline puzzles if no internet connection is available.
 
 Designed specifically for monochrome 800×480 E-Ink displays, Daily Chess features high-contrast piece glyphs, instant touch-based move input, turn validation, interactive solution checking, and an ambient sleep screen mode.
 
@@ -18,7 +18,7 @@ Designed specifically for monochrome 800×480 E-Ink displays, Daily Chess featur
 
 ## Features
 
-- **Daily Lichess Puzzles**: Automatically fetches the current daily puzzle JSON over HTTPS when Wi-Fi is connected.
+- **On-Demand Wi-Fi Daily Sync**: Tapping **Update** connects to Wi-Fi via `crosspoint.withWifi`, downloads the latest daily puzzle from Lichess over HTTPS, and automatically shuts down Wi-Fi immediately upon completion to preserve battery.
 - **Offline Fallback**: Bundled with local puzzle data (`daily.json`) so the app is always playable offline.
 - **Touch-Optimized Board**:
   - Tap a piece to highlight legal destination squares.

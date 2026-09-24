@@ -210,24 +210,29 @@ local function showHint()
 end
 
 local function fetchDaily()
-    if not crosspoint.isWifiConnected() then
-        statusMsg = "Wi-Fi disconnected. Connect in Settings."
+    statusMsg = "Connecting to Wi-Fi..."
+    crosspoint.requestUpdate()
+
+    crosspoint.withWifi(function(connected)
+        if not connected then
+            statusMsg = "Wi-Fi connection cancelled"
+            crosspoint.requestUpdate()
+            return
+        end
+
+        statusMsg = "Downloading daily puzzle..."
         crosspoint.requestUpdate()
-        return
-    end
 
-    statusMsg = "Downloading daily puzzle..."
-    crosspoint.requestUpdate()
-
-    local online = crosspoint.httpGet("https://lichess.org/api/puzzle/daily")
-    if online and online ~= "" then
-        storage.writeFile("daily.json", online)
-        loadPuzzle()
-        statusMsg = "New puzzle loaded! " .. (isPlayerWhite and "White" or "Black") .. " to move"
-    else
-        statusMsg = "Failed to download puzzle"
-    end
-    crosspoint.requestUpdate()
+        local online = crosspoint.httpGet("https://lichess.org/api/puzzle/daily")
+        if online and online ~= "" then
+            storage.writeFile("daily.json", online)
+            loadPuzzle()
+            statusMsg = "New puzzle loaded! " .. (isPlayerWhite and "White" or "Black") .. " to move"
+        else
+            statusMsg = "Failed to download puzzle"
+        end
+        crosspoint.requestUpdate()
+    end)
 end
 
 local function toggleSleep()

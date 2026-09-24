@@ -507,6 +507,37 @@ int l_crosspoint_isWifiConnected(lua_State* L) {
   return 1;
 }
 
+int l_crosspoint_connectWifi(lua_State* L) {
+  if (lua_isfunction(L, 1)) {
+    lua_pushvalue(L, 1);
+    lua_pushboolean(L, true);
+    if (lua_pcall(L, 1, 0, 0) != LUA_OK) {
+      const char* err = lua_tostring(L, -1);
+      std::cerr << "[SimNetwork connectWifi error] " << (err ? err : "unknown") << std::endl;
+      lua_pop(L, 1);
+    }
+  }
+  return 0;
+}
+
+int l_crosspoint_withWifi(lua_State* L) {
+  if (lua_isfunction(L, 1)) {
+    lua_pushvalue(L, 1);
+    lua_pushboolean(L, true);
+    if (lua_pcall(L, 1, 0, 0) != LUA_OK) {
+      const char* err = lua_tostring(L, -1);
+      std::cerr << "[SimNetwork withWifi error] " << (err ? err : "unknown") << std::endl;
+      lua_pop(L, 1);
+    }
+  }
+  return 0;
+}
+
+int l_crosspoint_disconnectWifi(lua_State* L) {
+  (void)L;
+  return 0;
+}
+
 static size_t curlWriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
   auto* s = static_cast<std::string*>(userp);
   s->append(static_cast<char*>(contents), size * nmemb);
@@ -769,6 +800,9 @@ void registerSimBindings(lua_State* L, SimContext* ctx) {
       {"log", l_crosspoint_log},
       {"getMemoryInfo", l_crosspoint_getMemoryInfo},
       {"isWifiConnected", l_crosspoint_isWifiConnected},
+      {"connectWifi", l_crosspoint_connectWifi},
+      {"withWifi", l_crosspoint_withWifi},
+      {"disconnectWifi", l_crosspoint_disconnectWifi},
       {"httpGet", l_crosspoint_httpGet},
       {"setSleepApp", l_crosspoint_setSleepApp},
       {"getSleepApp", l_crosspoint_getSleepApp},
