@@ -151,10 +151,12 @@ The host environment calls these global Lua functions when events occur:
 | Callback | Arguments | Description |
 | :--- | :--- | :--- |
 | `onEnter()` | *none* | Called once when the app starts. Initialize state and load files. |
-| `onTouch(x, y)` | `x, y` (integers) | Fired when the touchscreen is tapped (logical coordinates). |
+| `onTouch(x, y)` | `x, y` (integers) | Fired when the touchscreen is tapped (tap completion). |
+| `onTouchDown(x, y)` | `x, y` (integers) | Fired when finger or mouse first touches the screen. |
+| `onTouchUp(x, y)` | `x, y` (optional) | Fired when finger or mouse is lifted. |
 | `onInput(btn, action)` | `buttonId, action` | Fired when a physical button state changes (`action`: `"press"` or `"release"`). |
 | `onBack()` | *none* | Fired when the hardware Back button is pressed. Return `true` to consume the event (e.g., close dialogs); return `false`/nil to exit the app. |
-| `onUpdate(dt)` | `dt` (ms) | Called periodically (~50ms) for timers or step logic. |
+| `onUpdate(dt)` | `dt` (ms or sec) | Called periodically (~50ms) for timers, continuous holds, or step logic. |
 | `onDraw()` | *none* | Primary screen render function. Clear and draw graphics here. |
 | `onSleepDraw()` | *none* | Called when the device enters sleep if this app was designated as the sleep app. |
 | `onExit()` | *none* | Called when exiting the app. Perform state saving or cleanup here. |
@@ -206,6 +208,10 @@ The host environment calls these global Lua functions when events occur:
 | :--- | :--- | :--- |
 | `input.wasPressed(btn)` | `buttonId` | Returns `true` if the button was clicked this frame. |
 | `input.isPressed(btn)` | `buttonId` | Returns `true` if the button is currently held down. |
+| `input.isTouchDown()` | *none* | Returns `true` if finger/mouse is currently pressed down. |
+| `input.getTouch()` | *none* | Returns `isDown, x, y` (current touch contact position). |
+| `input.wasTouchDown()` | *none* | Returns `isDown, x, y` if a new touch began this frame. |
+| `input.wasTouchReleased()` | *none* | Returns `true` if touch contact ended this frame. |
 | `input.wasScreenTapped(x, y, w, h)` | `x, y, w, h` | Returns `true` if the given bounding box was tapped. |
 
 #### `input` Button Constants

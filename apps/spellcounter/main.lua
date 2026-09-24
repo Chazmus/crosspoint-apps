@@ -86,7 +86,65 @@ function onDraw()
     end
 end
 
+local holdState = {
+    active = false,
+    playerIdx = nil,
+    deltaSign = 0,
+    duration = 0,
+    hasTicked = false,
+    nextTickTime = 0,
+}
+
+local function getLifeTouchTarget(x, y)
+    if appUI.modal ~= nil then
+        return nil
+    end
+    local w = (gfx and gfx.getWidth and gfx.getWidth()) or 800
+    local h = (gfx and gfx.getHeight and gfx.getHeight()) or 480
+    local st = stateEngine.state
+    local pc = math.max(1, math.min(4, safeInt(st.playerCount, 4)))
+    local rects, headerH = grid.getCardRects(w, h, pc)
+
+    if y <= headerH then
+        return nil
+    end
+
+    for i = 1, pc do
+        local r = rects[i]
+        if r and x >= r.x and x <= r.x + r.w and y >= r.y and y <= r.y + r.h then
+            -- Top right menu button [···]
+            local menuBtnW = 44
+            local menuBtnH = 24
+            local menuBtnX = r.x + r.w - menuBtnW - 8
+            local menuBtnY = r.y + 4
+            if x >= menuBtnX and x <= menuBtnX + menuBtnW and y >= menuBtnY and y <= menuBtnY + menuBtnH then
+                return nil
+            end
+
+            -- Bottom counters strip
+            local stripH = 34
+            local stripY = r.y + r.h - stripH - 4
+            if y >= stripY then
+                return nil
+            end
+
+            -- Inside life touch area: left half = -1, right half = +1
+            local deltaSign = (x < r.x + math.floor(r.w / 2)) and -1 or 1
+            return {
+                playerIdx = i,
+                deltaSign = deltaSign,
+                rect = r,
+            }
+        end
+    end
+    return nil
+end
+
 function onTouch(x, y)
+    if holdState.hasTicked then
+        holdState.hasTicked = false
+        return
+    end
     x = safeNum(x, 0)
     y = safeNum(y, 0)
     local w = (gfx and gfx.getWidth and gfx.getWidth()) or 800
@@ -288,30 +346,7 @@ function onTouch(x, y)
                 return
             end
 
-            -- Quick +/- 5 buttons if card height allows
-            local cardHeaderH = 30
-            local lifeCenterY = r.y + cardHeaderH + math.floor((r.h - cardHeaderH - 42) / 2)
-            local btnSize = math.min(46, math.floor(r.h * 0.28))
-            local minusX = r.x + 14
-            local plusX = r.x + r.w - btnSize - 14
-            local btnY = lifeCenterY - math.floor(btnSize / 2)
-            local pillW = 38
-            local pillH = 22
-            local pillY = btnY + btnSize + 6
-
-            if r.h >= 180 and y >= pillY and y <= pillY + pillH then
-                if x >= minusX and x <= minusX + btnSize then
-                    stateEngine.changeLife(i, -5)
-                    if crosspoint and crosspoint.requestUpdate then crosspoint.requestUpdate() end
-                    return
-                elseif x >= plusX and x <= plusX + btnSize then
-                    stateEngine.changeLife(i, 5)
-                    if crosspoint and crosspoint.requestUpdate then crosspoint.requestUpdate() end
-                    return
-                end
-            end
-
-            -- Main Life +/- Buttons / Half-card tap
+            -- Main Life +/- Tap (±1)
             if x < r.x + math.floor(r.w / 2) then
                 stateEngine.changeLife(i, -1)
             else
@@ -373,7 +408,49 @@ function onBack()
 end
 
 function onUpdate(dt)
+    dt = safeNum(dt, 0.05)
     local now = (crosspoint and crosspoint.millis and crosspoint.millis()) or 0
+
+    -- 1. Continuous touch hold for ticking life by 10
+    if input and input.getTouch then
+        local isDown, tx, ty = input.getTouch()
+        if isDown then
+            if not holdState.active then
+                local target = getLifeTouchTarget(tx, ty)
+                if target then
+                    holdState.active = true
+                    holdState.playerIdx = target.playerIdx
+                    holdState.deltaSign = target.deltaSign
+                    holdState.duration = 0
+                    holdState.hasTicked = false
+                    holdState.nextTickTime = 0.5 -- 500ms initial hold threshold
+                end
+            end
+
+            if holdState.active then
+                local target = getLifeTouchTarget(tx, ty)
+                if target and target.playerIdx == holdState.playerIdx and target.deltaSign == holdState.deltaSign then
+                    holdState.duration = holdState.duration + dt
+                    if holdState.duration >= holdState.nextTickTime then
+                        holdState.hasTicked = true
+                        stateEngine.changeLife(holdState.playerIdx, holdState.deltaSign * 10)
+                        holdState.nextTickTime = holdState.duration + 1.0 -- repeat tick once a second (1.0s)
+                        if crosspoint and crosspoint.requestUpdate then
+                            crosspoint.requestUpdate()
+                        end
+                    end
+                else
+                    holdState.active = false
+                end
+            end
+        else
+            if holdState.active then
+                holdState.active = false
+            end
+        end
+    end
+
+    -- 2. Clear expired floating delta overlays
     if stateEngine.clearExpiredDeltas(now) then
         if crosspoint and crosspoint.requestUpdate then
             crosspoint.requestUpdate()
@@ -400,6 +477,8 @@ if _G then
         state = stateEngine.state,
         ui = appUI,
         appUI = appUI,
+        holdState = holdState,
+        getLifeTouchTarget = getLifeTouchTarget,
         stateEngine = stateEngine,
         drawUI = ui,
         saveState = stateEngine.saveState,

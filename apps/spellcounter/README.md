@@ -4,7 +4,7 @@ A feature-rich Magic: The Gathering (MTG) life and counter tracking application 
 
 ![Category](https://img.shields.io/badge/Category-Games%20%26%20Utilities-blue)
 ![Orientation](https://img.shields.io/badge/Orientation-Landscape%20(800x480)-green)
-![Version](https://img.shields.io/badge/Version-1.0.4-orange)
+![Version](https://img.shields.io/badge/Version-1.0.5-orange)
 
 ---
 
@@ -24,8 +24,9 @@ It supports 1 to 4 players with configurable card themes, commander damage matri
 - **High-Contrast Cards**: Solid borders, large bold life totals, and customizable dark/light card backgrounds per player.
 
 ### 2. Life & Delta Tracking
-- **Increment / Decrement Buttons**: ±1 and ±5 tap zones with clear visual boundaries.
-- **Delta Overlay**: Displays recent net life changes (e.g. `+3` or `-5`) that automatically clear after inactivity.
+- **Quick Tap (±1)**: Tap the `-` (left) or `+` (right) side of any player's card to increment or decrement life by 1.
+- **Press & Hold (±10)**: Press and hold on `-` or `+` for $\ge 500\text{ms}$ to start rapidly ticking life by $\pm 10$ once every second while held. Lifting your finger cleanly stops ticking without triggering an accidental single tap.
+- **Delta Overlay**: Displays recent net life changes (e.g. `+1` or `+20`) that automatically clear after inactivity.
 
 ### 3. Comprehensive Player Counters (`...` Modal)
 - **Commander Damage Matrix**: Track 21 lethal commander combat damage dealt to each player by every opponent, with an optional toggle to automatically deduct commander damage from total life.
@@ -68,7 +69,7 @@ apps/spellcounter/
 │   ├── tools_modal.lua        # Tools dialog (Dice roller, coin flip, monarch claim)
 │   ├── settings_modal.lua     # Settings dialog (Player count, starting life, sleep toggle)
 │   └── sleep_view.lua         # E-Ink sleep screen match summary renderer
-├── test_spellcounter.lua      # Comprehensive headless unit test suite (59 test cases)
+├── test_spellcounter.lua      # Comprehensive headless unit test suite (64 test cases)
 └── README.md                  # This documentation
 ```
 
@@ -78,11 +79,10 @@ apps/spellcounter/
 
 ### Touch Input
 - **Tap `+` / `-`**: Adjusts player life by ±1.
-- **Tap `+5` / `-5`**: Adjusts player life by ±5.
-- **Tap `...` (bottom-right of player card)**: Opens player details (commander damage, poison, storm, tax).
-- **Tap `🎲` (Tools, center bottom)**: Opens Dice / Coin / Monarch modal.
-- **Tap `⚙️` (Settings, bottom left)**: Opens Game Settings modal.
-- **Tap `↺` (Reset, bottom right)**: Prompts to reset the current match.
+- **Press & Hold `+` / `-`**: Ticks player life by ±10 (once per second while held).
+- **Tap `...` (top-right of player card)**: Opens player details (commander damage, poison, storm, tax).
+- **Tap `🎲` (Tools, top right)**: Opens Dice / Coin / Monarch modal.
+- **Tap `Reset` (top right)**: Prompts to reset the current match.
 
 ### Physical Hardware Buttons
 - **`CONFIRM`**: Opens Game Tools modal.

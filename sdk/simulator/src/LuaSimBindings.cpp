@@ -591,6 +591,42 @@ int l_input_wasScreenTapped(lua_State* L) {
   return 1;
 }
 
+int l_input_isTouchDown(lua_State* L) {
+  auto* ctx = getContext(L);
+  lua_pushboolean(L, ctx && ctx->isTouchDown);
+  return 1;
+}
+
+int l_input_getTouch(lua_State* L) {
+  auto* ctx = getContext(L);
+  if (ctx && ctx->isTouchDown) {
+    lua_pushboolean(L, true);
+    lua_pushinteger(L, ctx->touchX);
+    lua_pushinteger(L, ctx->touchY);
+    return 3;
+  }
+  lua_pushboolean(L, false);
+  return 1;
+}
+
+int l_input_wasTouchDown(lua_State* L) {
+  auto* ctx = getContext(L);
+  if (ctx && ctx->wasTouchDown) {
+    lua_pushboolean(L, true);
+    lua_pushinteger(L, ctx->touchX);
+    lua_pushinteger(L, ctx->touchY);
+    return 3;
+  }
+  lua_pushboolean(L, false);
+  return 1;
+}
+
+int l_input_wasTouchReleased(lua_State* L) {
+  auto* ctx = getContext(L);
+  lua_pushboolean(L, ctx && ctx->wasTouchReleased);
+  return 1;
+}
+
 void registerModule(lua_State* L, const char* name, const luaL_Reg* funcs, SimContext* ctx) {
   lua_newtable(L);
   for (; funcs->name != nullptr; ++funcs) {
@@ -678,6 +714,10 @@ void registerSimBindings(lua_State* L, SimContext* ctx) {
       {"wasPressed", l_input_wasPressed},
       {"isPressed", l_input_isPressed},
       {"wasScreenTapped", l_input_wasScreenTapped},
+      {"isTouchDown", l_input_isTouchDown},
+      {"getTouch", l_input_getTouch},
+      {"wasTouchDown", l_input_wasTouchDown},
+      {"wasTouchReleased", l_input_wasTouchReleased},
       {nullptr, nullptr},
   };
   registerModule(L, "input", inputFuncs, ctx);

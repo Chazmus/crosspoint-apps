@@ -123,10 +123,12 @@ apps/<app_id>/
 The host runtime calls these global functions in `main.lua`:
 
 - **`onEnter()`**: Called when the app starts. Read saved state (`storage.readFile()`), initialize tables.
-- **`onTouch(x, y)`**: Called on capacitive touch tap. Coordinates are already transformed into logical screen space based on orientation.
+- **`onTouch(x, y)`**: Called on capacitive touch tap completion. Coordinates are already transformed into logical screen space based on orientation.
+- **`onTouchDown(x, y)`**: Called when touch contact begins.
+- **`onTouchUp(x, y)`**: Called when touch contact ends / finger is lifted.
 - **`onInput(buttonId, action)`**: Physical button events. `action` is `"press"` or `"release"`.
 - **`onBack()`**: Hardware Back button handler. Return `true` to consume the back event (e.g., closing a modal or subview); return `false` or `nil` to allow CrossPoint to exit to the launcher.
-- **`onUpdate(dt)`**: Periodic update step (~50ms). Do NOT call drawing primitives here; update internal timers and call `crosspoint.requestUpdate()`.
+- **`onUpdate(dt)`**: Periodic update step (~50ms). Do NOT call drawing primitives here; update internal timers, continuous touch holds, and call `crosspoint.requestUpdate()`.
 - **`onDraw()`**: Main rendering routine. Clear and redraw the screen with `gfx.*`.
 - **`onSleepDraw()`**: Sleep screen renderer. Called when the reader enters sleep if this app was designated as sleep app (`crosspoint.setSleepApp("<app_id>")`).
 - **`onExit()`**: Called prior to exiting. Save persistent state (`storage.writeFile()`).
@@ -159,6 +161,10 @@ The host runtime calls these global functions in `main.lua`:
 ### `input` Module
 - `input.wasPressed(btn)`
 - `input.isPressed(btn)`
+- `input.isTouchDown()`: Returns `true` if finger / mouse is currently held down.
+- `input.getTouch()`: Returns `isDown, x, y` (logical coordinates).
+- `input.wasTouchDown()`: Returns `isDown, x, y` if touch started this frame.
+- `input.wasTouchReleased()`: Returns `true` if touch ended this frame.
 - `input.wasScreenTapped(x, y, w, h)`: Bounding box touch hit test.
 - Button constants: `input.BTN_UP`, `input.BTN_DOWN`, `input.BTN_LEFT`, `input.BTN_RIGHT`, `input.BTN_CONFIRM`, `input.BTN_BACK`, `input.BTN_PAGE_BACK`, `input.BTN_PAGE_FORWARD`.
 

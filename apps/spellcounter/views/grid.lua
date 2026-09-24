@@ -201,38 +201,20 @@ function grid.drawPlayerCard(p, rect, isSelected, state)
     end
 
     -- Large Touch Target Indicators (- on left, + on right)
-    local btnSize = math.min(46, math.floor(h * 0.28))
-    local minusX = x + 14
-    local plusX = x + w - btnSize - 14
+    local btnSize = math.min(52, math.floor(h * 0.32))
+    local minusX = x + 16
+    local plusX = x + w - btnSize - 16
     local btnY = lifeCenterY - math.floor(btnSize / 2)
 
-    ui.drawRounded(minusX, btnY, btnSize, btnSize, 8, 2, fgCol)
+    ui.drawRounded(minusX, btnY, btnSize, btnSize, 10, 2, fgCol)
     if gfx and gfx.drawLine then
-        gfx.drawLine(minusX + 10, lifeCenterY, minusX + btnSize - 10, lifeCenterY, 3, fgCol)
+        gfx.drawLine(minusX + 12, lifeCenterY, minusX + btnSize - 12, lifeCenterY, 3, fgCol)
     end
 
-    ui.drawRounded(plusX, btnY, btnSize, btnSize, 8, 2, fgCol)
+    ui.drawRounded(plusX, btnY, btnSize, btnSize, 10, 2, fgCol)
     if gfx and gfx.drawLine then
-        gfx.drawLine(plusX + 10, lifeCenterY, plusX + btnSize - 10, lifeCenterY, 3, fgCol)
-        gfx.drawLine(plusX + math.floor(btnSize / 2), btnY + 10, plusX + math.floor(btnSize / 2), btnY + btnSize - 10, 3, fgCol)
-    end
-
-    -- Quick +/- 5 pills if vertical space allows
-    if h >= 180 then
-        local pillW = 38
-        local pillH = 22
-        local pillY = btnY + btnSize + 6
-        if pillY + pillH <= y + h - 40 then
-            ui.drawRounded(minusX + math.floor((btnSize - pillW) / 2), pillY, pillW, pillH, 6, 1, fgCol)
-            if gfx and gfx.drawText then
-                gfx.drawText(ui.getFont("small"), minusX + math.floor((btnSize - pillW) / 2) + 7, pillY + 4, "-5", fgCol)
-            end
-
-            ui.drawRounded(plusX + math.floor((btnSize - pillW) / 2), pillY, pillW, pillH, 6, 1, fgCol)
-            if gfx and gfx.drawText then
-                gfx.drawText(ui.getFont("small"), plusX + math.floor((btnSize - pillW) / 2) + 5, pillY + 4, "+5", fgCol)
-            end
-        end
+        gfx.drawLine(plusX + 12, lifeCenterY, plusX + btnSize - 12, lifeCenterY, 3, fgCol)
+        gfx.drawLine(plusX + math.floor(btnSize / 2), btnY + 12, plusX + math.floor(btnSize / 2), btnY + btnSize - 12, 3, fgCol)
     end
 
     -- Bottom Counters Strip (Poison, Commander, Tax, Energy)

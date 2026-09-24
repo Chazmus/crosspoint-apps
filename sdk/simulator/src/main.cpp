@@ -384,7 +384,56 @@ int main(int argc, char* argv[]) {
       }
 
       if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
+        simCtx.isTouchDown = true;
+        simCtx.touchX = e.button.x;
+        simCtx.touchY = e.button.y;
+        simCtx.wasTouchDown = true;
         if (!isSleepPreview && L) {
+          const int errIdx = lua_gettop(L) + 1;
+          lua_pushcfunction(L, luaTraceback);
+          lua_getglobal(L, "onTouchDown");
+          if (lua_isfunction(L, -1)) {
+            lua_pushinteger(L, e.button.x);
+            lua_pushinteger(L, e.button.y);
+            if (lua_pcall(L, 2, 0, errIdx) != LUA_OK) {
+              std::cerr << "[Lua onTouchDown Error] " << lua_tostring(L, -1) << std::endl;
+              lua_pop(L, 1);
+            }
+          } else {
+            lua_pop(L, 1);
+          }
+          lua_remove(L, errIdx);
+        }
+      }
+
+      if (e.type == SDL_MOUSEMOTION) {
+        if (simCtx.isTouchDown) {
+          simCtx.touchX = e.motion.x;
+          simCtx.touchY = e.motion.y;
+        }
+      }
+
+      if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) {
+        simCtx.isTouchDown = false;
+        simCtx.touchX = e.button.x;
+        simCtx.touchY = e.button.y;
+        simCtx.wasTouchReleased = true;
+        if (!isSleepPreview && L) {
+          const int upErrIdx = lua_gettop(L) + 1;
+          lua_pushcfunction(L, luaTraceback);
+          lua_getglobal(L, "onTouchUp");
+          if (lua_isfunction(L, -1)) {
+            lua_pushinteger(L, e.button.x);
+            lua_pushinteger(L, e.button.y);
+            if (lua_pcall(L, 2, 0, upErrIdx) != LUA_OK) {
+              std::cerr << "[Lua onTouchUp Error] " << lua_tostring(L, -1) << std::endl;
+              lua_pop(L, 1);
+            }
+          } else {
+            lua_pop(L, 1);
+          }
+          lua_remove(L, upErrIdx);
+
           const auto t0 = std::chrono::steady_clock::now();
           const int errIdx = lua_gettop(L) + 1;
           lua_pushcfunction(L, luaTraceback);
@@ -525,6 +574,10 @@ int main(int argc, char* argv[]) {
         }
       }
     }
+
+    // Clear one-shot touch transition flags after event pump
+    simCtx.wasTouchDown = false;
+    simCtx.wasTouchReleased = false;
 
     if (simCtx.shouldFinish) {
       std::cout << "[Simulator] App requested finish." << std::endl;

@@ -91,6 +91,12 @@ local function setupMocks()
         getLineHeight = function(font) return 16 end,
     }
 
+    local mockTouch = {
+        down = false,
+        x = 0,
+        y = 0,
+    }
+
     _G.input = {
         BTN_BACK = 0,
         BTN_CONFIRM = 1,
@@ -100,6 +106,18 @@ local function setupMocks()
         BTN_DOWN = 5,
         BTN_PAGE_BACK = 7,
         BTN_PAGE_FORWARD = 8,
+        isTouchDown = function() return mockTouch.down end,
+        getTouch = function()
+            if mockTouch.down then
+                return true, mockTouch.x, mockTouch.y
+            end
+            return false
+        end,
+        setMockTouch = function(down, x, y)
+            mockTouch.down = down
+            mockTouch.x = x or 0
+            mockTouch.y = y or 0
+        end,
     }
 
     _G.storage = {
@@ -237,26 +255,47 @@ run_test("test_modals_drawing", function()
     onDraw()
 end)
 
--- 5. Touch Life Adjustments
+-- 5. Touch Life Adjustments (Tap ±1 and Hold ±10)
 run_test("test_touch_life_adjustments", function()
     onEnter()
     local p1Start = state.players[1].life
 
-    -- Tap left side of P1 card (-1 Life)
+    -- 1. Tap left side of P1 card (-1 Life)
     onTouch(50, 150)
     assert_eq(state.players[1].life, p1Start - 1, "P1 life decreased by 1")
 
-    -- Tap right side of P1 card (+1 Life)
+    -- 2. Tap right side of P1 card (+1 Life)
     onTouch(350, 150)
     assert_eq(state.players[1].life, p1Start, "P1 life restored by 1")
 
-    -- Tap -5 pill (x=30, y=185)
-    onTouch(30, 185)
-    assert_eq(state.players[1].life, p1Start - 5, "P1 life decreased by 5 via pill")
+    -- 3. Press and hold right side (+10 Life)
+    input.setMockTouch(true, 350, 150)
+    onUpdate(0.1) -- 100ms: not yet 500ms
+    assert_eq(state.players[1].life, p1Start, "Life unchanged before 500ms threshold")
 
-    -- Tap +5 pill (x=350, y=185)
-    onTouch(350, 185)
-    assert_eq(state.players[1].life, p1Start, "P1 life increased by 5 via pill")
+    onUpdate(0.45) -- total 550ms: triggers first +10 tick!
+    assert_eq(state.players[1].life, p1Start + 10, "Life increased by 10 after 500ms hold")
+
+    onUpdate(0.5) -- total 1050ms: not yet 1550ms (second tick)
+    assert_eq(state.players[1].life, p1Start + 10, "Life unchanged between ticks")
+
+    onUpdate(0.6) -- total 1650ms: triggers second +10 tick!
+    assert_eq(state.players[1].life, p1Start + 20, "Life increased by another 10 after 1s repeat")
+
+    -- Release touch: tap should be suppressed
+    input.setMockTouch(false)
+    onUpdate(0.05)
+    onTouch(350, 150) -- simulate SDL/hardware tap event fired on release
+    assert_eq(state.players[1].life, p1Start + 20, "Tap suppressed after hold tick")
+
+    -- 4. Press and hold left side (-10 Life)
+    input.setMockTouch(true, 50, 150)
+    onUpdate(0.55) -- 550ms: triggers -10 tick
+    assert_eq(state.players[1].life, p1Start + 10, "Life decreased by 10 on hold")
+    input.setMockTouch(false)
+    onUpdate(0.05)
+    onTouch(50, 150)
+    assert_eq(state.players[1].life, p1Start + 10, "Tap suppressed after minus hold tick")
 end)
 
 -- 6. Touch Tools & Dice Rolling

@@ -21,6 +21,11 @@ struct SimContext {
   bool updateRequested = false;
   bool orientationChanged = false;
   bool shouldFinish = false;
+  bool isTouchDown = false;
+  int touchX = 0;
+  int touchY = 0;
+  bool wasTouchDown = false;
+  bool wasTouchReleased = false;
 };
 
 void registerSimBindings(lua_State* L, SimContext* ctx);
