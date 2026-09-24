@@ -45,7 +45,8 @@ function ui.fillRounded(x, y, w, h, r, isBlack)
     w = math.max(1, safeNum(w, 1))
     h = math.max(1, safeNum(h, 1))
     r = math.max(0, safeNum(r, 0))
-    local col = (isBlack == false or isBlack == 3) and ((gfx and gfx.COLOR_WHITE) or 3) or ((gfx and gfx.COLOR_BLACK) or 0)
+    local isWhite = (isBlack == false or isBlack == 3 or (gfx and isBlack == gfx.COLOR_WHITE))
+    local col = isWhite and ((gfx and gfx.COLOR_WHITE) or 1) or ((gfx and gfx.COLOR_BLACK) or 0)
     if gfx and gfx.fillRoundedRect then
         gfx.fillRoundedRect(x, y, w, h, r, col)
     end
@@ -62,7 +63,8 @@ function ui.drawRounded(x, y, w, h, r, lineWidth, isBlack)
         lineWidth = 1
     end
     lineWidth = math.max(1, safeNum(lineWidth, 1))
-    local black = (isBlack ~= false and isBlack ~= 3)
+    local isWhite = (isBlack == false or isBlack == 3 or (gfx and isBlack == gfx.COLOR_WHITE))
+    local black = not isWhite
     if gfx and gfx.drawRoundedRect then
         gfx.drawRoundedRect(x, y, w, h, r, lineWidth, black)
     end
@@ -76,12 +78,23 @@ function ui.drawButton(x, y, w, h, text, font, isBlack, isFilled)
     font = font or ui.getFont("ui_10")
     text = safeText(text, "")
 
-    local textBlack = isFilled and (not isBlack) or (isBlack ~= false and isBlack ~= 3)
+    local isWhite = (isBlack == false or isBlack == 3 or (gfx and isBlack == gfx.COLOR_WHITE))
+    local bgIsBlack = not isWhite
+    local textBlack
+    if isFilled then
+        -- Filled black button -> text must be WHITE (false).
+        -- Filled white button -> text must be BLACK (true).
+        textBlack = not bgIsBlack
+    else
+        -- Outlined black button -> text is BLACK (true).
+        -- Outlined white button -> text is WHITE (false).
+        textBlack = bgIsBlack
+    end
 
     if isFilled then
-        ui.fillRounded(x, y, w, h, 8, isBlack)
+        ui.fillRounded(x, y, w, h, 8, bgIsBlack)
     else
-        ui.drawRounded(x, y, w, h, 8, 2, isBlack)
+        ui.drawRounded(x, y, w, h, 8, 2, bgIsBlack)
     end
 
     local tw = ui.getTextWidth(font, text)

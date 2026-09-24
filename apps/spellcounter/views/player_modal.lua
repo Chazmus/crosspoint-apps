@@ -25,7 +25,7 @@ function playerModal.draw(w, h, state, detailPlayer, linkCmdrDamage)
     local p = stateEngine.ensurePlayer(state.players[dIdx], dIdx, state.startingLife or 40)
     state.players[dIdx] = p
 
-    local mw = math.min(680, w - 30)
+    local mw = math.min(680, w - 24)
     local mh = math.min(430, h - 20)
     local mx = math.floor((w - mw) / 2)
     local my = math.floor((h - mh) / 2)
@@ -43,12 +43,12 @@ function playerModal.draw(w, h, state, detailPlayer, linkCmdrDamage)
     end
 
     -- Name Cycle button
-    local nameBtnW = 110
-    local nameBtnX = mx + mw - nameBtnW - 56
+    local nameBtnW = 100
+    local nameBtnX = mx + mw - nameBtnW - 52
     ui.drawButton(nameBtnX, my + 7, nameBtnW, 28, "Cycle Name", ui.getFont("small"), ui.C_WHITE, false)
 
     -- Close [X] button
-    local closeX = mx + mw - 46
+    local closeX = mx + mw - 44
     ui.drawButton(closeX, my + 7, 36, 28, "X", ui.getFont("ui_10"), ui.C_WHITE, false)
 
     local rowY = my + 54
@@ -68,7 +68,7 @@ function playerModal.draw(w, h, state, detailPlayer, linkCmdrDamage)
     -- Row 2: Poison Counters
     rowY = rowY + 44
     local pCount = safeNum(p.poison, 0)
-    local poisStr = "Poison Counters: " .. pCount .. (pCount >= 10 and " [LETHAL!]" or "")
+    local poisStr = "Poison: " .. pCount .. (pCount >= 10 and " [LETHAL!]" or "")
     if gfx and gfx.drawText then
         gfx.drawText(ui.getFont("ui_10"), mx + 20, rowY + 6, poisStr, ui.C_BLACK)
     end
@@ -79,7 +79,7 @@ function playerModal.draw(w, h, state, detailPlayer, linkCmdrDamage)
     -- Row 3: Commander Damage Received
     rowY = rowY + 44
     if gfx and gfx.drawText then
-        gfx.drawText(ui.getFont("ui_10"), mx + 20, rowY + 6, "Commander Damage:", ui.C_BLACK)
+        gfx.drawText(ui.getFont("ui_10"), mx + 20, rowY + 6, "Cmdr Damage:", ui.C_BLACK)
     end
     btnX = mx + 200
     local pc = math.max(1, math.min(4, safeInt(state.playerCount, 4)))
@@ -119,43 +119,43 @@ function playerModal.draw(w, h, state, detailPlayer, linkCmdrDamage)
     if gfx and gfx.drawText then
         gfx.drawText(ui.getFont("small"), mx + 20, rowY + 6, taxLabel, ui.C_BLACK)
     end
-    ui.drawButton(mx + 130, rowY, 32, 28, "-", ui.getFont("small"), ui.C_BLACK, false)
-    ui.drawButton(mx + 168, rowY, 32, 28, "+", ui.getFont("small"), ui.C_BLACK, false)
+    ui.drawButton(mx + 110, rowY, 32, 28, "-", ui.getFont("small"), ui.C_BLACK, false)
+    ui.drawButton(mx + 148, rowY, 32, 28, "+", ui.getFont("small"), ui.C_BLACK, false)
 
     -- Energy
     local energyLabel = "Energy: " .. safeNum(p.energy, 0)
     if gfx and gfx.drawText then
-        gfx.drawText(ui.getFont("small"), mx + 224, rowY + 6, energyLabel, ui.C_BLACK)
+        gfx.drawText(ui.getFont("small"), mx + 200, rowY + 6, energyLabel, ui.C_BLACK)
     end
-    ui.drawButton(mx + 314, rowY, 32, 28, "-", ui.getFont("small"), ui.C_BLACK, false)
-    ui.drawButton(mx + 352, rowY, 32, 28, "+", ui.getFont("small"), ui.C_BLACK, false)
+    ui.drawButton(mx + 270, rowY, 32, 28, "-", ui.getFont("small"), ui.C_BLACK, false)
+    ui.drawButton(mx + 308, rowY, 32, 28, "+", ui.getFont("small"), ui.C_BLACK, false)
 
     -- Experience
     local xpLabel = "XP: " .. safeNum(p.experience, 0)
     if gfx and gfx.drawText then
-        gfx.drawText(ui.getFont("small"), mx + 408, rowY + 6, xpLabel, ui.C_BLACK)
+        gfx.drawText(ui.getFont("small"), mx + 360, rowY + 6, xpLabel, ui.C_BLACK)
     end
-    ui.drawButton(mx + 478, rowY, 32, 28, "-", ui.getFont("small"), ui.C_BLACK, false)
-    ui.drawButton(mx + 516, rowY, 32, 28, "+", ui.getFont("small"), ui.C_BLACK, false)
+    ui.drawButton(mx + 410, rowY, 32, 28, "-", ui.getFont("small"), ui.C_BLACK, false)
+    ui.drawButton(mx + 448, rowY, 32, 28, "+", ui.getFont("small"), ui.C_BLACK, false)
 
     -- Row 5: Storm count, Invert Theme, Link Checkbox
     rowY = rowY + 42
-    local stormLabel = "Storm Count: " .. safeNum(p.storm, 0)
+    local stormLabel = "Storm: " .. safeNum(p.storm, 0)
     if gfx and gfx.drawText then
         gfx.drawText(ui.getFont("small"), mx + 20, rowY + 6, stormLabel, ui.C_BLACK)
     end
-    ui.drawButton(mx + 130, rowY, 32, 28, "-", ui.getFont("small"), ui.C_BLACK, false)
-    ui.drawButton(mx + 168, rowY, 32, 28, "+", ui.getFont("small"), ui.C_BLACK, false)
-    ui.drawButton(mx + 206, rowY, 84, 28, "Reset Storm", ui.getFont("small"), ui.C_BLACK, false)
+    ui.drawButton(mx + 85, rowY, 32, 28, "-", ui.getFont("small"), ui.C_BLACK, false)
+    ui.drawButton(mx + 122, rowY, 32, 28, "+", ui.getFont("small"), ui.C_BLACK, false)
+    ui.drawButton(mx + 160, rowY, 96, 28, "Reset Storm", ui.getFont("small"), ui.C_BLACK, false)
 
     -- Invert Card Color Toggle
     local invText = p.inverted and "Card: Dark" or "Card: Light"
-    ui.drawButton(mx + 304, rowY, 130, 28, invText, ui.getFont("small"), ui.C_BLACK, false)
+    ui.drawButton(mx + 266, rowY, 110, 28, invText, ui.getFont("small"), ui.C_BLACK, false)
 
     -- Auto-link Cmdr Damage to Life Checkbox
     local linkText = linkCmdrDamage and "[X] Cmdr Dmg reduces life" or "[ ] Cmdr Dmg reduces life"
     if gfx and gfx.drawText then
-        gfx.drawText(ui.getFont("small"), mx + 450, rowY + 6, linkText, ui.C_BLACK)
+        gfx.drawText(ui.getFont("small"), mx + 386, rowY + 6, linkText, ui.C_BLACK)
     end
 end
 
@@ -164,13 +164,13 @@ function playerModal.handleTouch(x, y, w, h, state, detailPlayer, linkCmdrDamage
     local p = stateEngine.ensurePlayer(state.players[dIdx], dIdx, state.startingLife or 40)
     state.players[dIdx] = p
 
-    local mw = math.min(680, w - 30)
+    local mw = math.min(680, w - 24)
     local mh = math.min(430, h - 20)
     local mx = math.floor((w - mw) / 2)
     local my = math.floor((h - mh) / 2)
 
     -- Close [X]
-    local closeX = mx + mw - 46
+    local closeX = mx + mw - 44
     if x >= closeX and x <= closeX + 36 and y >= my + 7 and y <= my + 35 then
         if log and log.info then log.info("MODAL", "Closed player_detail modal") end
         onClose()
@@ -178,8 +178,8 @@ function playerModal.handleTouch(x, y, w, h, state, detailPlayer, linkCmdrDamage
     end
 
     -- Name Cycle button
-    local nameBtnW = 110
-    local nameBtnX = mx + mw - nameBtnW - 56
+    local nameBtnW = 100
+    local nameBtnX = mx + mw - nameBtnW - 52
     if x >= nameBtnX and x <= nameBtnX + nameBtnW and y >= my + 7 and y <= my + 35 then
         stateEngine.cyclePlayerName(p.id)
         return true
@@ -237,27 +237,27 @@ function playerModal.handleTouch(x, y, w, h, state, detailPlayer, linkCmdrDamage
     -- Row 4: Tax, Energy, Experience
     rowY = rowY + 44
     if y >= rowY and y <= rowY + 28 then
-        if x >= mx + 130 and x <= mx + 162 then
+        if x >= mx + 110 and x <= mx + 142 then
             p.tax = math.max(0, safeNum(p.tax, 0) - 1)
             stateEngine.saveState()
             return true
-        elseif x >= mx + 168 and x <= mx + 200 then
+        elseif x >= mx + 148 and x <= mx + 180 then
             p.tax = safeNum(p.tax, 0) + 1
             stateEngine.saveState()
             return true
-        elseif x >= mx + 314 and x <= mx + 346 then
+        elseif x >= mx + 270 and x <= mx + 302 then
             p.energy = math.max(0, safeNum(p.energy, 0) - 1)
             stateEngine.saveState()
             return true
-        elseif x >= mx + 352 and x <= mx + 384 then
+        elseif x >= mx + 308 and x <= mx + 340 then
             p.energy = safeNum(p.energy, 0) + 1
             stateEngine.saveState()
             return true
-        elseif x >= mx + 478 and x <= mx + 510 then
+        elseif x >= mx + 410 and x <= mx + 442 then
             p.experience = math.max(0, safeNum(p.experience, 0) - 1)
             stateEngine.saveState()
             return true
-        elseif x >= mx + 516 and x <= mx + 548 then
+        elseif x >= mx + 448 and x <= mx + 480 then
             p.experience = safeNum(p.experience, 0) + 1
             stateEngine.saveState()
             return true
@@ -267,23 +267,23 @@ function playerModal.handleTouch(x, y, w, h, state, detailPlayer, linkCmdrDamage
     -- Row 5: Storm, Invert theme, Link toggle
     rowY = rowY + 42
     if y >= rowY and y <= rowY + 28 then
-        if x >= mx + 130 and x <= mx + 162 then
+        if x >= mx + 85 and x <= mx + 117 then
             p.storm = math.max(0, safeNum(p.storm, 0) - 1)
             stateEngine.saveState()
             return true
-        elseif x >= mx + 168 and x <= mx + 200 then
+        elseif x >= mx + 122 and x <= mx + 154 then
             p.storm = safeNum(p.storm, 0) + 1
             stateEngine.saveState()
             return true
-        elseif x >= mx + 206 and x <= mx + 290 then
+        elseif x >= mx + 160 and x <= mx + 256 then
             p.storm = 0
             stateEngine.saveState()
             return true
-        elseif x >= mx + 304 and x <= mx + 434 then
+        elseif x >= mx + 266 and x <= mx + 376 then
             p.inverted = not p.inverted
             stateEngine.saveState()
             return true
-        elseif x >= mx + 440 and x <= mx + mw - 10 then
+        elseif x >= mx + 386 and x <= mx + mw - 10 then
             onToggleLink()
             return true
         end

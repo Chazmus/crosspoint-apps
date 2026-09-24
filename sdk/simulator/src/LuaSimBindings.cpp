@@ -181,6 +181,19 @@ int l_gfx_fillRectDither(lua_State* L) {
   return 0;
 }
 
+static bool isColorBlack(lua_State* L, int idx) {
+  if (lua_isnone(L, idx)) return true;
+  if (lua_isboolean(L, idx)) return lua_toboolean(L, idx);
+  if (lua_isinteger(L, idx) || lua_isnumber(L, idx)) {
+    const int val = lua_tointeger(L, idx);
+    if (val == static_cast<int>(Color::White) || val == 1 || val == 3) {
+      return false;
+    }
+    return true;
+  }
+  return lua_toboolean(L, idx);
+}
+
 int l_gfx_drawRoundedRect(lua_State* L) {
   auto* ctx = getContext(L);
   if (ctx && ctx->renderer) {
@@ -190,7 +203,7 @@ int l_gfx_drawRoundedRect(lua_State* L) {
     const int h = checkInt(L, 4);
     const int radius = checkInt(L, 5);
     const int lineWidth = optInt(L, 6, 1);
-    const bool black = lua_isnone(L, 7) ? true : lua_toboolean(L, 7);
+    const bool black = isColorBlack(L, 7);
     ctx->renderer->drawRoundedRect(x, y, w, h, radius, lineWidth, black);
   }
   return 0;
@@ -204,8 +217,20 @@ int l_gfx_fillRoundedRect(lua_State* L) {
     const int w = checkInt(L, 3);
     const int h = checkInt(L, 4);
     const int radius = checkInt(L, 5);
-    const int col = optInt(L, 6, static_cast<int>(Color::Black));
-    ctx->renderer->fillRoundedRect(x, y, w, h, radius, static_cast<Color>(col));
+    Color col = Color::Black;
+    if (lua_isboolean(L, 6)) {
+      col = lua_toboolean(L, 6) ? Color::Black : Color::White;
+    } else if (lua_isinteger(L, 6) || lua_isnumber(L, 6)) {
+      const int val = lua_tointeger(L, 6);
+      if (val == static_cast<int>(Color::White) || val == 1 || val == 3) {
+        col = Color::White;
+      } else if (val == static_cast<int>(Color::Black) || val == 0 || val == 16) {
+        col = Color::Black;
+      } else {
+        col = static_cast<Color>(val);
+      }
+    }
+    ctx->renderer->fillRoundedRect(x, y, w, h, radius, col);
   }
   return 0;
 }
@@ -217,7 +242,7 @@ int l_gfx_drawCircle(lua_State* L) {
     const int cy = checkInt(L, 2);
     const int r = checkInt(L, 3);
     const int lineWidth = optInt(L, 4, 1);
-    const bool black = lua_isnone(L, 5) ? true : lua_toboolean(L, 5);
+    const bool black = isColorBlack(L, 5);
     ctx->renderer->drawCircle(cx, cy, r, lineWidth, black);
   }
   return 0;
@@ -230,7 +255,7 @@ int l_gfx_drawText(lua_State* L) {
     const int x = checkInt(L, 2);
     const int y = checkInt(L, 3);
     const char* text = luaL_checkstring(L, 4);
-    const bool black = lua_isnone(L, 5) ? true : lua_toboolean(L, 5);
+    const bool black = isColorBlack(L, 5);
     ctx->renderer->drawText(fontId, x, y, text, black);
   }
   return 0;
@@ -242,7 +267,7 @@ int l_gfx_drawCenteredText(lua_State* L) {
     const int fontId = luaL_checkinteger(L, 1);
     const int y = checkInt(L, 2);
     const char* text = luaL_checkstring(L, 3);
-    const bool black = lua_isnone(L, 4) ? true : lua_toboolean(L, 4);
+    const bool black = isColorBlack(L, 4);
     ctx->renderer->drawCenteredText(fontId, y, text, black);
   }
   return 0;
