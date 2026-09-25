@@ -1,5 +1,53 @@
--- Simple pure-Lua JSON decoder for CrossPoint
+-- Simple pure-Lua JSON encoder and decoder for CrossPoint
 local json = {}
+
+local function escape_str(s)
+    local in_char  = {'\\', '"', '\b', '\f', '\n', '\r', '\t'}
+    local out_char = {'\\\\', '\\"', '\\b', '\\f', '\\n', '\\r', '\\t'}
+    for i, c in ipairs(in_char) do
+        s = s:gsub(c, out_char[i])
+    end
+    return '"' .. s .. '"'
+end
+
+local function is_array(t)
+    local count = 0
+    for _ in pairs(t) do count = count + 1 end
+    for i = 1, count do
+        if t[i] == nil then return false, 0 end
+    end
+    return true, count
+end
+
+function json.encode(val)
+    local t = type(val)
+    if t == "nil" then
+        return "null"
+    elseif t == "boolean" then
+        return val and "true" or "false"
+    elseif t == "number" then
+        return tostring(val)
+    elseif t == "string" then
+        return escape_str(val)
+    elseif t == "table" then
+        local isArr, arrCount = is_array(val)
+        if isArr then
+            local parts = {}
+            for i = 1, arrCount do
+                parts[i] = json.encode(val[i])
+            end
+            return "[" .. table.concat(parts, ",") .. "]"
+        else
+            local parts = {}
+            for k, v in pairs(val) do
+                table.insert(parts, escape_str(tostring(k)) .. ":" .. json.encode(v))
+            end
+            return "{" .. table.concat(parts, ",") .. "}"
+        end
+    else
+        return "null"
+    end
+end
 
 local function parse_value(str, i)
     local c = str:sub(i, i)

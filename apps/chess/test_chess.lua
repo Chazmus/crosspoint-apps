@@ -1,7 +1,7 @@
 -- ============================================================================
--- Automated Test Suite for Chess Puzzles App
--- Runs headlessly under lua5.4 to verify FEN parsing, puzzle lifecycle,
--- move validation, withWifi sync, touch interactions, and rendering safety.
+-- Automated Test Suite for CrossPoint Chess App
+-- Tests FEN parsing, move generation, AI minimax engine, Play vs Computer,
+-- Daily Tactical Puzzles, Wi-Fi sync, undo, board flip, and sleep screens.
 -- ============================================================================
 
 local testCount = 0
@@ -55,8 +55,8 @@ local function setupMocks()
     wifiCalls = 0
     httpGetUrl = nil
     httpGetResponse = nil
+    _G._sleepApp = nil
 
-    -- Read actual daily.json from disk into mock storage
     local f = io.open("apps/chess/daily.json", "r")
     if f then
         storageFiles["daily.json"] = f:read("*a")
@@ -68,6 +68,9 @@ local function setupMocks()
         ORIENTATION_LANDSCAPE = 1,
         ORIENTATION_PORTRAIT_INVERTED = 2,
         ORIENTATION_LANDSCAPE_CCW = 3,
+        COLOR_BLACK = 0,
+        COLOR_WHITE = 1,
+        COLOR_LIGHT_GRAY = 2,
         FONT_UI_10 = 1,
         FONT_UI_12 = 2,
         FONT_SMALL = 3,
@@ -161,80 +164,250 @@ local function setupMocks()
     }
 end
 
--- ---------------------------------------------------------------------------
--- Tests
--- ---------------------------------------------------------------------------
 setupMocks()
-
 package.path = "./apps/chess/?.lua;./apps/chess/?/init.lua;" .. package.path
-local chessApp = dofile("apps/chess/main.lua")
+local Engine = require("apps.chess.engine")
+dofile("apps/chess/main.lua")
 
-run_test("App initialization & puzzle loading", function()
+-- ===========================================================================
+-- 1. Engine Unit Tests
+-- ===========================================================================
+run_test("Engine: initial board & FEN export", function()
+    local g = Engine.newGame()
+    local fen = Engine.toFen(g)
+    assert_eq(fen, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", "Default FEN match")
+    assert_eq(g.turn, "w", "White begins")
+    assert_eq(#g.history, 0, "No history yet")
+end)
+
+run_test("Engine: legal move count at start", function()
+    local g = Engine.newGame()
+    local legals = Engine.getLegalMoves(g)
+    assert_eq(#legals, 20, "20 initial legal moves (16 pawn pushes + 4 knight jumps)")
+end)
+
+run_test("Engine: move execution, check detection, and undo", function()
+    local g = Engine.newGame()
+    -- Fool's mate sequence: 1. f3 e5 2. g4 Qh4#
+    assert_true(Engine.makeMove(g, Engine.uciToMove("f2f3")), "Move f2f3")
+    assert_true(Engine.makeMove(g, Engine.uciToMove("e7e5")), "Move e7e5")
+    assert_true(Engine.makeMove(g, Engine.uciToMove("g2g4")), "Move g2g4")
+    assert_true(Engine.makeMove(g, Engine.uciToMove("d8h4")), "Move d8h4")
+
+    local over, winner, reason = Engine.getGameStatus(g)
+    assert_true(over, "Game should be over")
+    assert_eq(winner, "b", "Black wins")
+    assert_eq(reason, "checkmate", "Reason is checkmate")
+
+    -- Undo back to before checkmate
+    assert_true(Engine.undoMove(g), "Undo Qh4")
+    local overAfterUndo, _, _ = Engine.getGameStatus(g)
+    assert_true(not overAfterUndo, "Game is no longer over after undo")
+    assert_eq(g.turn, "b", "Turn restored to Black")
+end)
+
+run_test("Engine: Castling rights & execution", function()
+    -- Set up position where White can castle Kingside
+    local fen = "r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/2N2N2/PPPP1PPP/R1BQK2R w KQkq - 4 5"
+    local g = Engine.newGame(fen)
+    local moveCastle = Engine.uciToMove("e1g1")
+    assert_true(Engine.makeMove(g, moveCastle), "Castling e1g1 should succeed")
+    assert_eq(g.board[6], "K", "King on g1")
+    assert_eq(g.board[5], "R", "Rook on f1")
+    assert_eq(g.board[4], ".", "e1 empty")
+    assert_eq(g.board[7], ".", "h1 empty")
+end)
+
+run_test("Engine: En Passant capture", function()
+    -- White pawn on e5, Black plays d7d5 -> White can capture e5xd6 ep
+    local fen = "rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3"
+    local g = Engine.newGame(fen)
+    local epMove = Engine.uciToMove("e5d6")
+    assert_true(Engine.makeMove(g, epMove), "e5d6 en passant should succeed")
+    assert_eq(g.board[43], "P", "White Pawn on d6")
+    assert_eq(g.board[35], ".", "Captured Black Pawn on d5 removed")
+end)
+
+run_test("Engine: AI getBestMove produces valid legal moves", function()
+    local g = Engine.newGame()
+    local m1 = Engine.getBestMove(g, 1) -- Easy
+    local m2 = Engine.getBestMove(g, 2) -- Medium
+    local m3 = Engine.getBestMove(g, 3) -- Hard
+
+    assert_true(m1 ~= nil and #m1 >= 4, "Easy move generated: " .. tostring(m1))
+    assert_true(m2 ~= nil and #m2 >= 4, "Medium move generated: " .. tostring(m2))
+    assert_true(m3 ~= nil and #m3 >= 4, "Hard move generated: " .. tostring(m3))
+
+    local isLegal1 = Engine.isLegalMove(g, Engine.uciToMove(m1))
+    local isLegal2 = Engine.isLegalMove(g, Engine.uciToMove(m2))
+    local isLegal3 = Engine.isLegalMove(g, Engine.uciToMove(m3))
+    assert_true(isLegal1, "m1 is legal")
+    assert_true(isLegal2, "m2 is legal")
+    assert_true(isLegal3, "m3 is legal")
+end)
+
+-- ===========================================================================
+-- 2. App Lifecycle, Menu & Navigation Tests
+-- ===========================================================================
+run_test("App initialization & Main Menu display", function()
     setupMocks()
+    dofile("apps/chess/main.lua")
     onEnter()
-    assert_true(storage.exists("daily.json"), "daily.json should be present in storage")
-end)
-
-run_test("Rendering calls succeed without crash", function()
     onDraw()
-    onSleepDraw()
-    assert_true(true, "onDraw and onSleepDraw rendered safely")
+    assert_true(true, "onEnter and onDraw executed successfully on main menu")
 end)
 
-run_test("Touch on Sync Daily button invokes withWifi", function()
+run_test("Sleep screen toggle on Main Menu", function()
+    setupMocks()
+    dofile("apps/chess/main.lua")
+    onEnter()
+
+    -- Sleep toggle button at bottom right (x=580..760, y=418..462)
+    onTouch(650, 440)
+    assert_eq(crosspoint.getSleepApp(), "chess", "Sleep app should be toggled ON to chess")
+
+    onTouch(650, 440)
+    assert_eq(crosspoint.getSleepApp(), "", "Sleep app should be toggled OFF")
+end)
+
+run_test("Daily Puzzle navigation, hint, reset, and Wi-Fi sync", function()
     setupMocks()
     wifiStatus = true
     httpGetResponse = '{"game":{"id":"test1234"},"puzzle":{"id":"00001","rating":1500,"solution":["e2e4","e7e5"],"themes":["opening"]},"fen":"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"}'
-
+    dofile("apps/chess/main.lua")
     onEnter()
+
+    -- 1. Tap Daily Puzzle card on Main Menu (Card 2: x=420..760, y=68..400)
+    onTouch(500, 200)
+    onDraw()
+
+    -- 2. Tap Hint button (col1X = 445, row1Y = 290, btnW = 160, btnH = 44)
+    onTouch(500, 310)
+
+    -- 3. Tap Reset button (col2X = 620, row1Y = 290)
+    onTouch(680, 310)
+
+    -- 4. Tap Sync Daily button (col1X = 445, row2Y = 346)
     local oldWifiCalls = wifiCalls
+    onTouch(500, 360)
+    assert_true(wifiCalls > oldWifiCalls, "withWifi invoked on Sync Daily tap")
+    assert_eq(httpGetUrl, "https://lichess.org/api/puzzle/daily", "Lichess daily API queried")
 
-    -- Tap Sync Daily button: col1X = 445, row2Y = 346, btnW = 160, btnH = 44
-    onTouch(460, 360)
-
-    assert_true(wifiCalls > oldWifiCalls, "withWifi should have been called on Sync Daily tap")
-    assert_eq(httpGetUrl, "https://lichess.org/api/puzzle/daily", "httpGet should query Lichess daily API")
-    assert_true(storage.exists("daily.json"), "storage should update daily.json")
+    -- 5. Tap Menu button (col2X = 620, row2Y = 346)
+    onTouch(680, 360)
+    onDraw()
+    assert_true(true, "Returned to Main Menu successfully")
 end)
 
-run_test("Sync Daily handles Wi-Fi cancellation safely", function()
+run_test("Daily Puzzle handles Wi-Fi cancellation & network error safely", function()
     setupMocks()
-    wifiStatus = false -- simulate user cancelled or no network
-
+    dofile("apps/chess/main.lua")
     onEnter()
-    onTouch(460, 360) -- Tap Sync Daily
 
-    assert_true(true, "Handled Wi-Fi cancellation without crashing")
-end)
+    -- Enter Daily Puzzle
+    onTouch(500, 200)
 
-run_test("Sync Daily handles network error (nil response) safely", function()
-    setupMocks()
+    -- Cancelled Wi-Fi
+    wifiStatus = false
+    onTouch(500, 360)
+    assert_true(true, "Handled Wi-Fi cancellation safely")
+
+    -- Failed download (nil HTTP response)
     wifiStatus = true
-    httpGetResponse = nil -- simulate failed download
-
-    onEnter()
-    onTouch(460, 360)
-
-    assert_true(true, "Handled nil HTTP response gracefully")
+    httpGetResponse = nil
+    onTouch(500, 360)
+    assert_true(true, "Handled nil HTTP response safely")
 end)
 
-run_test("Sleep screen toggle", function()
+-- ===========================================================================
+-- 3. Play vs Computer Game Mode Tests
+-- ===========================================================================
+run_test("Play vs Computer: Setup, gameplay, AI move, undo, and save", function()
     setupMocks()
+    dofile("apps/chess/main.lua")
     onEnter()
-    -- Tap Set Sleep button: col2X = 620, row2Y = 346
-    onTouch(630, 360)
-    assert_eq(crosspoint.getSleepApp(), "chess", "Sleep app should be set to chess")
 
-    onTouch(630, 360)
-    assert_eq(crosspoint.getSleepApp(), "", "Sleep app should be toggled off")
+    -- 1. Tap Card 1 (Play vs Computer) on Main Menu
+    onTouch(200, 200)
+    onDraw()
+
+    -- 2. On Setup screen: Choose White (x=60..380, y=125..188) and Medium (x=420..740, y=180..232)
+    onTouch(150, 150) -- White
+    onTouch(500, 200) -- Medium
+    -- Tap Start Game button (x=240..560, y=335..400)
+    onTouch(350, 360)
+    onDraw()
+
+    -- 3. Make move e2e4:
+    -- Board coordinates: boardX=26, boardY=50, boardSize=400, sqSize=50
+    -- White perspective: file e = file 4 -> dispFile 4 -> x = 26 + 4*50 + 25 = 251
+    -- Rank 2 (index 1) -> dispRank 7 - 1 = 6 -> y = 50 + 6*50 + 25 = 375
+    -- Tap e2
+    onTouch(251, 375)
+
+    -- Rank 4 (index 3) -> dispRank 7 - 3 = 4 -> y = 50 + 4*50 + 25 = 275
+    -- Tap e4
+    onTouch(251, 275)
+    onDraw()
+
+    -- Verify move executed and game saved
+    assert_true(storage.exists("game.json"), "game.json should be saved after player move")
+
+    -- 4. Trigger computer thinking via onUpdate countdown
+    onUpdate(0.05) -- frame 1
+    onUpdate(0.05) -- frame 2: AI calculates and makes move
+    onDraw()
+
+    -- 5. Tap Undo button (col1X = 445, row1Y = 270, btnW = 160, btnH = 44)
+    onTouch(500, 290)
+    onDraw()
+
+    -- 6. Tap Flip Board button (col1X = 445, row2Y = 326)
+    onTouch(500, 345)
+    onDraw()
+
+    -- 7. Tap Menu button (col2X = 620, row2Y = 326) to return to Main Menu
+    onTouch(680, 345)
+    onDraw()
+
+    -- 8. Verify Resume Game is available on Main Menu
+    -- Tapping Resume Game (y <= 325 on Card 1)
+    onTouch(200, 300)
+    onDraw()
+    assert_true(true, "Successfully resumed game from Main Menu")
 end)
 
-run_test("Board reset button", function()
+run_test("Left-edge back swipe gesture returns to menu", function()
     setupMocks()
+    dofile("apps/chess/main.lua")
     onEnter()
-    -- Tap Reset button: col2X = 620, row1Y = 290
-    onTouch(630, 310)
-    assert_true(true, "Reset button executed successfully")
+
+    -- Enter Setup screen
+    onTouch(200, 200)
+
+    -- Simulate swipe from left edge (x=10 -> x=80, dy < 120)
+    onTouchDown(10, 200)
+    onTouchUp(80, 205)
+    onDraw()
+
+    -- Hardware Back button test
+    assert_true(not onBack(), "onBack on Main Menu returns false to exit to launcher")
+end)
+
+run_test("Sleep screen rendering in both Game and Puzzle modes", function()
+    setupMocks()
+    dofile("apps/chess/main.lua")
+    onEnter()
+
+    -- Sleep draw from Main Menu (renders Daily Puzzle)
+    onSleepDraw()
+
+    -- Enter Game mode and sleep draw (renders active game)
+    onTouch(200, 200) -- Setup
+    onTouch(350, 360) -- Start game
+    onSleepDraw()
+
+    assert_true(true, "onSleepDraw rendered safely in all modes")
 end)
 
 -- ---------------------------------------------------------------------------

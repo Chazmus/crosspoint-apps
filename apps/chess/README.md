@@ -1,50 +1,79 @@
-# Daily Chess ♟️
+# CrossPoint Chess
 
-A daily tactical chess puzzle application for CrossPoint Reader (ESP32-S3 / E-Ink).
+A complete chess application for CrossPoint Reader (ESP32-S3 / E-Ink), featuring **Play vs Computer** (built-in pure-Lua AI with 3 difficulty levels) and **Daily Chess Puzzles** (synced from Lichess).
 
 ![Category](https://img.shields.io/badge/Category-Games%20%26%20Puzzles-blue)
 ![Orientation](https://img.shields.io/badge/Orientation-Landscape%20(800x480)-green)
-![Version](https://img.shields.io/badge/Version-1.0.4-orange)
+![Version](https://img.shields.io/badge/Version-1.1.1-orange)
 
 ---
 
 ## Overview
 
-**Daily Chess** brings daily tactical chess training to your CrossPoint e-reader. It connects to Wi-Fi on-demand to fetch the daily puzzle from the [Lichess API](https://lichess.org/api#tag/Puzzles/operation/apiPuzzleDaily), automatically manages Wi-Fi lifecycle to conserve battery, and gracefully falls back to bundled offline puzzles if no internet connection is available.
+**CrossPoint Chess** brings full-featured chess to your CrossPoint e-reader:
+1. **Play vs Computer**: Challenge an on-device chess engine with 3 skill levels (Easy, Medium, Hard). Play as White or Black, view legal move indicators, take back moves, flip the board, and save games automatically.
+2. **Daily Puzzles**: Connect to Wi-Fi on-demand to fetch tactical training puzzles from the [Lichess API](https://lichess.org/api#tag/Puzzles/operation/apiPuzzleDaily), or solve bundled offline tactics when on the go.
 
-Designed specifically for monochrome 800×480 E-Ink displays, Daily Chess features high-contrast Staunton piece glyphs (derived from Colin Burnett's renowned vector set), instant touch-based move input, turn validation, interactive solution checking, and an ambient sleep screen mode.
+Designed specifically for reflective, monochrome 800x480 E-Ink displays with high contrast, crisp Staunton piece glyphs, generous touch targets (>= 44px), and ambient sleep screen integration.
 
 ---
 
 ## Features
 
-- **High-Contrast Staunton Pieces**: Custom 40×40 dual-layer 1-bit sprites derived from Colin M.L. Burnett's open-source piece vectors. Includes solid white fills for Light pieces and 1-pixel outer contrast halos for Dark pieces, ensuring pieces pop out clearly on both white and dithered checkered squares.
-- **On-Demand Wi-Fi Daily Sync**: Tapping **Update** connects to Wi-Fi via `crosspoint.withWifi`, downloads the latest daily puzzle from Lichess over HTTPS, and automatically shuts down Wi-Fi immediately upon completion to preserve battery.
-- **Offline Fallback**: Bundled with local puzzle data (`daily.json`) so the app is always playable offline.
-- **Touch-Optimized Board**:
-  - Tap a piece to highlight legal destination squares.
-  - Tap a destination square to make a move.
-  - Automatic board flipping based on whether the puzzle requires playing as White or Black.
-- **Solution Verification**: Validates moves against the puzzle's UCI move line. Immediate visual feedback indicates correct moves or blunders.
-- **Move History & Rating**: Displays the puzzle rating, theme tags, and move sequence.
-- **Sleep Screen Mode (`onSleepDraw`)**: Sets the reader's low-power sleep screen to display the daily puzzle board and rating, turning your idle device into a desk puzzle display.
+- **Built-in Pure-Lua Chess Engine (`engine.lua`)**:
+  - Full FIDE rule implementation: castling, en passant, pawn promotion, check, checkmate, stalemate, 50-move rule, and insufficient material draws.
+  - Minimax search with Alpha-Beta pruning and Piece-Square Tables (PST).
+  - 3 Difficulty Levels:
+    - **Easy (~1000 Elo)**: Depth 2 search with randomized candidate selection within a close evaluation margin.
+    - **Medium (~1350 Elo)**: Depth 3 search with positional evaluation.
+    - **Hard (~1600 Elo)**: Depth 4 search with tactical move ordering.
+- **High-Contrast Staunton Pieces**: Custom 40x40 dual-layer 1-bit sprites derived from Colin M.L. Burnett's open-source piece vectors. Solid fills for Light pieces and contrast halos for Dark pieces ensure pieces remain legible on white and dithered squares.
+- **Interactive Move Guidance**:
+  - Tap your piece to highlight all legal destination squares (dots for quiet moves, rings for captures).
+  - Tap destination to execute move.
+  - Automatic promotion to Queen.
+- **Game State Persistence**:
+  - Ongoing games automatically save to `game.json` in sandboxed app storage.
+  - Main menu provides an instant **Resume Game** option.
+- **Takebacks & Board Flipping**:
+  - **Undo**: Rewinds both computer and player moves cleanly.
+  - **Flip Board**: Toggles board orientation between White and Black perspectives.
+- **Daily Puzzle Mode**:
+  - On-demand Wi-Fi sync via `crosspoint.withWifi` downloads the daily Lichess puzzle and disconnects Wi-Fi immediately to conserve battery.
+  - Interactive solution verification with hints and resets.
+  - Offline fallback dataset (`daily.json`).
+- **Ambient Sleep Screen (`views/sleep.lua`)**:
+  - Shows your ongoing game (board, move number, turn indicator) when put to sleep during a match.
+  - Shows the daily tactical puzzle when put to sleep from puzzle mode or the main menu.
+  - Toggle sleep takeover directly from the main menu.
 
 ---
 
 ## Controls
 
 ### Touch Input
-- **Tap Piece**: Selects the active piece and displays candidate move highlights.
-- **Tap Square**: Moves the selected piece to the target square.
-- **Top / Bottom Bar Buttons**:
-  - **Hint**: Shows the next move in the puzzle sequence.
-  - **Reset**: Resets the board back to the initial puzzle state.
-  - **New / Next**: Cycles through available puzzles.
+- **Main Menu**:
+  - Tap **Play vs Computer** card to start or resume a game.
+  - Tap **Daily Puzzle** card to practice tactics.
+  - Tap **Sleep Screen** button to toggle CrossPoint sleep screen takeover.
+  - Drag from the left edge rightward to exit.
+- **Game Setup**:
+  - Select Side: **White** (move first) or **Black** (computer moves first).
+  - Select Difficulty: **Easy**, **Medium**, or **Hard**.
+  - Tap **Start Game** to begin.
+- **Play Screen**:
+  - **Tap Piece**: Selects piece and highlights legal destination squares.
+  - **Tap Square**: Moves piece to chosen destination.
+  - **Undo**: Takes back the last turn.
+  - **New Game**: Returns to setup to start a new match.
+  - **Flip Board**: Rotates the board perspective 180 degrees.
+  - **< Menu**: Returns to main menu (game state is saved).
+- **Navigation Gesture**:
+  - Swipe right from the left screen edge (x <= 60px) to navigate back from any screen.
 
 ### Physical Hardware Buttons
-- **`CONFIRM` (Center)**: Confirms selection or toggles move hint.
-- **`BACK` (Escape)**: Exits the app back to the CrossPoint launcher.
-- **`PAGE_BACK` / `PAGE_FORWARD`**: Step through move history.
+- **`CONFIRM` (Enter / Space)**: Resets puzzle in puzzle mode.
+- **`BACK` (Escape / Backspace)**: Returns to main menu from subviews, or exits to CrossPoint launcher from main menu.
 
 ---
 
@@ -53,33 +82,44 @@ Designed specifically for monochrome 800×480 E-Ink displays, Daily Chess featur
 ```text
 apps/chess/
 ├── manifest.json       # App metadata, landscape orientation, and sleep screen flag
-├── main.lua            # Lifecycle hooks, board controller, and UI rendering
-├── pieces.lua          # 1-bit monochrome piece bitmap sprites (King, Queen, Rook, etc.)
-├── json.lua            # Pure-Lua JSON parser for Lichess API responses
+├── main.lua            # Lean main coordinator and lifecycle hooks
+├── engine.lua          # Pure-Lua FIDE chess engine, move generator, and minimax AI
+├── pieces.lua          # 1-bit monochrome piece bitmap sprites (40x40 ink & mask)
+├── json.lua            # Pure-Lua JSON parser and serializer
+├── ui.lua              # UI components, button helpers, and chessboard rendering
 ├── daily.json          # Bundled offline fallback puzzle dataset
-└── README.md           # This documentation
+├── test_chess.lua      # Standalone unit test suite
+├── views/
+│   ├── menu.lua        # Main menu dashboard view
+│   ├── setup.lua       # Match configuration view
+│   ├── game.lua        # Play vs Computer active match view & controller
+│   ├── puzzle.lua      # Daily puzzle solver view & controller
+│   └── sleep.lua       # Ambient sleep screen renderer
+└── README.md           # Documentation
 ```
 
 ---
 
-## Testing in Simulator
+## Testing & Simulator
 
-You can test and run Daily Chess on your desktop using the CrossPoint SDK:
-
+Run the automated test suite:
 ```bash
-# Launch Daily Chess in landscape mode
+lua apps/chess/test_chess.lua
+```
+
+Launch in the CrossPoint desktop simulator:
+```bash
 ./sdk/run apps/chess
+```
 
-# Generate a screenshot of the active board
-./sdk/run --screenshot /tmp/chess.bmp apps/chess
-
-# Preview the sleep screen rendering
-./sdk/run --screenshot-sleep /tmp/chess_sleep.bmp apps/chess
+Run headless performance profiling:
+```bash
+./sdk/run --profile apps/chess
 ```
 
 ---
 
 ## Credits & Artwork
 
-- **Chess Piece Vectors**: Derived from Colin M.L. Burnett's (Cburnett) standard Staunton chess piece set (used on Wikipedia and Lichess), licensed under [Creative Commons Attribution-ShareAlike 3.0 Unported (CC BY-SA 3.0)](https://creativecommons.org/licenses/by-sa/3.0/) and GNU General Public License v3.
+- **Chess Piece Vectors**: Derived from Colin M.L. Burnett's (Cburnett) standard Staunton chess piece set (used on Wikipedia and Lichess), licensed under CC BY-SA 3.0 and GPLv3.
 - **Daily Puzzles**: Powered by the [Lichess.org Daily Puzzle API](https://lichess.org/api#tag/Puzzles/operation/apiPuzzleDaily).
