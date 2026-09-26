@@ -82,8 +82,19 @@ local PST_KING_MID = {
 }
 
 local PST = {
-    P = PST_PAWN, N = PST_KNIGHT, B = PST_BISHOP, R = PST_ROOK, Q = PST_QUEEN, K = PST_KING_MID
+    P = PST_PAWN, N = PST_KNIGHT, B = PST_BISHOP, R = PST_ROOK, Q = PST_QUEEN, K = PST_KING_MID,
+    p = PST_PAWN, n = PST_KNIGHT, b = PST_BISHOP, r = PST_ROOK, q = PST_QUEEN, k = PST_KING_MID
 }
+
+-- Directional tables & attack offsets pre-allocated once to eliminate heap/PSRAM churn
+local KNIGHT_ATTACK_OFFSETS = {-17, -15, -10, -6, 6, 10, 15, 17}
+local KNIGHT_OFFSETS = {{-2, -1}, {-2, 1}, {-1, -2}, {-1, 2}, {1, -2}, {1, 2}, {2, -1}, {2, 1}}
+local ORTH_DIRS = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}}
+local DIAG_DIRS = {{-1, -1}, {1, -1}, {-1, 1}, {1, 1}}
+local QUEEN_DIRS = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}, {-1, -1}, {1, -1}, {-1, 1}, {1, 1}}
+
+local IS_WHITE_PIECE = { P = true, N = true, B = true, R = true, Q = true, K = true }
+local IS_BLACK_PIECE = { p = true, n = true, b = true, r = true, q = true, k = true }
 
 function Engine.squareToFileRank(sq)
     local f = sq % 8
@@ -121,16 +132,16 @@ function Engine.uciToMove(str)
 end
 
 function Engine.isWhitePiece(p)
-    return p and p ~= "." and p:match("[PNBRQK]") ~= nil
+    return IS_WHITE_PIECE[p] == true
 end
 
 function Engine.isBlackPiece(p)
-    return p and p ~= "." and p:match("[pnbrqk]") ~= nil
+    return IS_BLACK_PIECE[p] == true
 end
 
 function Engine.isColorPiece(p, color)
-    if color == "w" then return Engine.isWhitePiece(p) end
-    if color == "b" then return Engine.isBlackPiece(p) end
+    if color == "w" then return IS_WHITE_PIECE[p] == true end
+    if color == "b" then return IS_BLACK_PIECE[p] == true end
     return false
 end
 
@@ -251,9 +262,8 @@ function Engine.isSquareAttacked(board, sq, attackerColor)
     end
 
     -- 2. Knight attacks
-    local knightOffsets = {-17, -15, -10, -6, 6, 10, 15, 17}
     local knightChar = attackerColor == "w" and "N" or "n"
-    for _, off in ipairs(knightOffsets) do
+    for _, off in ipairs(KNIGHT_ATTACK_OFFSETS) do
         local target = sq + off
         if target >= 0 and target <= 63 then
             local tf, tr = Engine.squareToFileRank(target)
@@ -280,8 +290,7 @@ function Engine.isSquareAttacked(board, sq, attackerColor)
     -- 4. Sliding pieces: Orthogonal (Rook / Queen)
     local rookChar = attackerColor == "w" and "R" or "r"
     local queenChar = attackerColor == "w" and "Q" or "q"
-    local orthDirs = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}}
-    for _, d in ipairs(orthDirs) do
+    for _, d in ipairs(ORTH_DIRS) do
         local df, dr = d[1], d[2]
         local tf, tr = f + df, r + dr
         while tf >= 0 and tf <= 7 and tr >= 0 and tr <= 7 do
@@ -296,8 +305,7 @@ function Engine.isSquareAttacked(board, sq, attackerColor)
 
     -- 5. Sliding pieces: Diagonal (Bishop / Queen)
     local bishopChar = attackerColor == "w" and "B" or "b"
-    local diagDirs = {{-1, -1}, {1, -1}, {-1, 1}, {1, 1}}
-    for _, d in ipairs(diagDirs) do
+    for _, d in ipairs(DIAG_DIRS) do
         local df, dr = d[1], d[2]
         local tf, tr = f + df, r + dr
         while tf >= 0 and tf <= 7 and tr >= 0 and tr <= 7 do
@@ -353,7 +361,7 @@ local function generatePieceMoves(game, sq, moves)
             end
         end
         -- White pawn captures
-        for _, df in ipairs({-1, 1}) do
+        for df = -1, 1, 2 do
             local tf = f + df
             if tf >= 0 and tf <= 7 and r < 7 then
                 local target = (r + 1) * 8 + tf
@@ -391,7 +399,7 @@ local function generatePieceMoves(game, sq, moves)
             end
         end
         -- Black pawn captures
-        for _, df in ipairs({-1, 1}) do
+        for df = -1, 1, 2 do
             local tf = f + df
             if tf >= 0 and tf <= 7 and r > 0 then
                 local target = (r - 1) * 8 + tf
@@ -412,8 +420,7 @@ local function generatePieceMoves(game, sq, moves)
         end
 
     elseif p == "N" or p == "n" then
-        local knightOffsets = {{-2, -1}, {-2, 1}, {-1, -2}, {-1, 2}, {1, -2}, {1, 2}, {2, -1}, {2, 1}}
-        for _, d in ipairs(knightOffsets) do
+        for _, d in ipairs(KNIGHT_OFFSETS) do
             local tf = f + d[1]
             local tr = r + d[2]
             if tf >= 0 and tf <= 7 and tr >= 0 and tr <= 7 then
@@ -426,18 +433,13 @@ local function generatePieceMoves(game, sq, moves)
         end
 
     elseif p == "B" or p == "b" or p == "R" or p == "r" or p == "Q" or p == "q" then
-        local dirs = {}
-        if p == "B" or p == "b" or p == "Q" or p == "q" then
-            table.insert(dirs, {-1, -1})
-            table.insert(dirs, {1, -1})
-            table.insert(dirs, {-1, 1})
-            table.insert(dirs, {1, 1})
-        end
-        if p == "R" or p == "r" or p == "Q" or p == "q" then
-            table.insert(dirs, {-1, 0})
-            table.insert(dirs, {1, 0})
-            table.insert(dirs, {0, -1})
-            table.insert(dirs, {0, 1})
+        local dirs
+        if p == "B" or p == "b" then
+            dirs = DIAG_DIRS
+        elseif p == "R" or p == "r" then
+            dirs = ORTH_DIRS
+        else
+            dirs = QUEEN_DIRS
         end
         for _, d in ipairs(dirs) do
             local df, dr = d[1], d[2]
@@ -506,27 +508,30 @@ local function generatePieceMoves(game, sq, moves)
 end
 
 -- Make move (internal, returns undo state)
-local function applyMoveInternal(game, m)
+local function applyMoveInternal(game, m, undo)
     local fromSq, toSq = m.from, m.to
     local piece = game.board[fromSq]
     local captured = game.board[toSq]
     local isWhite = Engine.isWhitePiece(piece)
 
-    local undo = {
-        from = fromSq,
-        to = toSq,
-        piece = piece,
-        captured = captured,
-        castlingK = game.castling.K,
-        castlingQ = game.castling.Q,
-        castlingk = game.castling.k,
-        castlingq = game.castling.q,
-        ep = game.ep,
-        halfmove = game.halfmove,
-        isCastle = m.isCastle,
-        isEp = m.isEp,
-        epCapturedSq = -1
-    }
+    if not undo then
+        undo = {}
+    end
+    undo.from = fromSq
+    undo.to = toSq
+    undo.piece = piece
+    undo.captured = captured
+    undo.castlingK = game.castling.K
+    undo.castlingQ = game.castling.Q
+    undo.castlingk = game.castling.k
+    undo.castlingq = game.castling.q
+    undo.ep = game.ep
+    undo.halfmove = game.halfmove
+    undo.isCastle = m.isCastle
+    undo.isEp = m.isEp
+    undo.promo = m.promo
+    undo.epCapturedSq = -1
+    undo.epCapturedPiece = nil
 
     -- Clear from square
     game.board[fromSq] = "."
@@ -667,9 +672,10 @@ function Engine.getLegalMoves(game, fromSq)
     end
 
     local legalMoves = {}
+    local checkUndo = {}
     for _, m in ipairs(pseudoMoves) do
         local movingColor = turn
-        local undo = applyMoveInternal(game, m)
+        local undo = applyMoveInternal(game, m, checkUndo)
         -- Check if moving side's king is left in check
         local inCheck = Engine.isInCheck(game.board, movingColor)
         undoMoveInternal(game, undo)
@@ -756,10 +762,9 @@ function Engine.evaluate(game)
         local p = game.board[sq]
         if p ~= "." then
             local isWhite = Engine.isWhitePiece(p)
-            local pUpper = p:upper()
-            local val = PIECE_VALUES[pUpper] or 0
+            local val = PIECE_VALUES[p] or 0
 
-            local pstTable = PST[pUpper]
+            local pstTable = PST[p]
             local pstVal = 0
             if pstTable then
                 local pstIdx = isWhite and (sq + 1) or ((7 - math.floor(sq / 8)) * 8 + (sq % 8) + 1)
@@ -782,7 +787,7 @@ local function scoreMove(game, m)
     local aggressor = game.board[m.from]
     local s = 0
     if victim ~= "." then
-        s = (PIECE_VALUES[victim:upper()] or 0) * 10 - (PIECE_VALUES[aggressor:upper()] or 0)
+        s = (PIECE_VALUES[victim] or 0) * 10 - (PIECE_VALUES[aggressor] or 0)
     end
     if m.promo then
         s = s + 900
@@ -790,9 +795,12 @@ local function scoreMove(game, m)
     return s
 end
 
+-- Reusable undo stack for minimax search to prevent allocations per node
+local searchUndoStack = {}
+
 -- Alpha-Beta Minimax search
 local function minimax(game, depth, alpha, beta, isMaximizing)
-    if depth == 0 then
+    if depth <= 0 then
         return Engine.evaluate(game)
     end
 
@@ -809,12 +817,15 @@ local function minimax(game, depth, alpha, beta, isMaximizing)
         return scoreMove(game, a) > scoreMove(game, b)
     end)
 
+    searchUndoStack[depth] = searchUndoStack[depth] or {}
+    local nodeUndo = searchUndoStack[depth]
+
     if isMaximizing then
         local maxEval = -100000
         for _, m in ipairs(legals) do
-            local undo = applyMoveInternal(game, m)
+            applyMoveInternal(game, m, nodeUndo)
             local ev = minimax(game, depth - 1, alpha, beta, false)
-            undoMoveInternal(game, undo)
+            undoMoveInternal(game, nodeUndo)
             if ev > maxEval then maxEval = ev end
             if ev > alpha then alpha = ev end
             if beta <= alpha then break end
@@ -823,9 +834,9 @@ local function minimax(game, depth, alpha, beta, isMaximizing)
     else
         local minEval = 100000
         for _, m in ipairs(legals) do
-            local undo = applyMoveInternal(game, m)
+            applyMoveInternal(game, m, nodeUndo)
             local ev = minimax(game, depth - 1, alpha, beta, true)
-            undoMoveInternal(game, undo)
+            undoMoveInternal(game, nodeUndo)
             if ev < minEval then minEval = ev end
             if ev < beta then beta = ev end
             if beta <= alpha then break end
@@ -835,12 +846,12 @@ local function minimax(game, depth, alpha, beta, isMaximizing)
 end
 
 -- Best move search for computer
--- difficulty: 1 = Easy (Depth 2 + candidate noise), 2 = Medium (Depth 3), 3 = Hard (Depth 4)
+-- difficulty: 1 = Easy (Depth 1 + candidate noise), 2 = Medium (Depth 2), 3 = Hard (Depth 3)
 function Engine.getBestMove(game, difficulty)
     difficulty = difficulty or 2
-    local depth = 3
-    if difficulty == 1 then depth = 2
-    elseif difficulty == 3 then depth = 4 end
+    local depth = 2
+    if difficulty == 1 then depth = 1
+    elseif difficulty == 3 then depth = 3 end
 
     local legals = Engine.getLegalMoves(game)
     if #legals == 0 then return nil, 0 end
@@ -858,11 +869,12 @@ function Engine.getBestMove(game, difficulty)
     local beta = 100000
     local bestScore = isMaximizing and -100000 or 100000
 
+    local rootUndo = {}
     if isMaximizing then
         for _, m in ipairs(legals) do
-            local undo = applyMoveInternal(game, m)
+            applyMoveInternal(game, m, rootUndo)
             local score = minimax(game, depth - 1, alpha, beta, false)
-            undoMoveInternal(game, undo)
+            undoMoveInternal(game, rootUndo)
 
             table.insert(candidates, {move = m, score = score})
             if score > bestScore then
@@ -873,9 +885,9 @@ function Engine.getBestMove(game, difficulty)
         end
     else
         for _, m in ipairs(legals) do
-            local undo = applyMoveInternal(game, m)
+            applyMoveInternal(game, m, rootUndo)
             local score = minimax(game, depth - 1, alpha, beta, true)
-            undoMoveInternal(game, undo)
+            undoMoveInternal(game, rootUndo)
 
             table.insert(candidates, {move = m, score = score})
             if score < bestScore then

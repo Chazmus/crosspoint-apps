@@ -4,7 +4,7 @@ A complete chess application for CrossPoint Reader (ESP32-S3 / E-Ink), featuring
 
 ![Category](https://img.shields.io/badge/Category-Games%20%26%20Puzzles-blue)
 ![Orientation](https://img.shields.io/badge/Orientation-Landscape%20(800x480)-green)
-![Version](https://img.shields.io/badge/Version-1.1.1-orange)
+![Version](https://img.shields.io/badge/Version-1.1.2-orange)
 
 ---
 
@@ -22,11 +22,12 @@ Designed specifically for reflective, monochrome 800x480 E-Ink displays with hig
 
 - **Built-in Pure-Lua Chess Engine (`engine.lua`)**:
   - Full FIDE rule implementation: castling, en passant, pawn promotion, check, checkmate, stalemate, 50-move rule, and insufficient material draws.
-  - Minimax search with Alpha-Beta pruning and Piece-Square Tables (PST).
-  - 3 Difficulty Levels:
-    - **Easy (~1000 Elo)**: Depth 2 search with randomized candidate selection within a close evaluation margin.
-    - **Medium (~1350 Elo)**: Depth 3 search with positional evaluation.
-    - **Hard (~1600 Elo)**: Depth 4 search with tactical move ordering.
+  - Minimax search with Alpha-Beta pruning, Piece-Square Tables (PST), and move ordering.
+  - Highly optimized for ESP32-S3 PSRAM architecture: zero-allocation ray casting, hoisted directional tables, lookup-based piece testing, and pooled undo stacks.
+  - 3 Embedded-Calibrated Difficulty Levels:
+    - **Easy (~1000 Elo)**: Depth 1 search with randomized candidate selection within a close evaluation margin. Instant response (~0.05s on ESP32).
+    - **Medium (~1350 Elo)**: Depth 2 search with positional evaluation and material awareness (~0.2–0.4s on ESP32).
+    - **Hard (~1600 Elo)**: Depth 3 search with tactical combinations, piece-square development, and alpha-beta pruning (~1.5–2.5s on ESP32).
 - **High-Contrast Staunton Pieces**: Custom 40x40 dual-layer 1-bit sprites derived from Colin M.L. Burnett's open-source piece vectors. Solid fills for Light pieces and contrast halos for Dark pieces ensure pieces remain legible on white and dithered squares.
 - **Interactive Move Guidance**:
   - Tap your piece to highlight all legal destination squares (dots for quiet moves, rings for captures).

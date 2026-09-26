@@ -1,12 +1,12 @@
 {
   "name": "CrossPoint Official Apps",
   "description": "Curated community Lua applications for CrossPoint reader",
-  "version": 13,
+  "version": 14,
   "apps": [
     {
       "id": "chess",
       "name": "CrossPoint Chess",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "author": "Chazmus",
       "description": "Play vs Computer AI or solve Lichess Daily Tactical Puzzles",
       "icon": "Blocks",
