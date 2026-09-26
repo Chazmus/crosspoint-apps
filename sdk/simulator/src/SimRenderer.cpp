@@ -6,6 +6,7 @@
 #include <iostream>
 
 #include "FontRenderer.h"
+#include "qrcode.h"
 
 namespace sim {
 
@@ -335,6 +336,44 @@ void SimRenderer::drawSprite(int x, int y, int w, int h, const uint8_t* ink, con
 
       const bool isInk = (ink[idx] >> shift) & 1;
       drawPixel(px, py, isInk);
+    }
+  }
+}
+
+void SimRenderer::drawQrCode(int x, int y, int w, int h, const std::string& text) {
+  size_t len = text.length();
+  static constexpr size_t MAX_QR_CAPACITY = 2953;
+  if (len > MAX_QR_CAPACITY) {
+    len = MAX_QR_CAPACITY;
+  }
+  std::string payload = text.substr(0, len);
+
+  int version = 4;
+  if (len > 114) version = 10;
+  if (len > 395) version = 20;
+  if (len > 1066) version = 30;
+  if (len > 2110) version = 40;
+
+  uint32_t bufferSize = qrcode_getBufferSize(version);
+  std::vector<uint8_t> qrcodeBytes(bufferSize);
+
+  QRCode qrcode;
+  int8_t res = qrcode_initText(&qrcode, qrcodeBytes.data(), version, ECC_LOW, payload.c_str());
+  if (res == 0) {
+    const int maxDim = std::min(w, h);
+    int px = maxDim / qrcode.size;
+    if (px < 1) px = 1;
+
+    const int qrDisplaySize = qrcode.size * px;
+    const int xOff = x + (w - qrDisplaySize) / 2;
+    const int yOff = y + (h - qrDisplaySize) / 2;
+
+    for (uint8_t cy = 0; cy < qrcode.size; cy++) {
+      for (uint8_t cx = 0; cx < qrcode.size; cx++) {
+        if (qrcode_getModule(&qrcode, cx, cy)) {
+          fillRect(xOff + px * cx, yOff + px * cy, px, px, true);
+        }
+      }
     }
   }
 }

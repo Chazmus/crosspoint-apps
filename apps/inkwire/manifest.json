@@ -1,0 +1,10 @@
+{
+  "id": "inkwire",
+  "title": "InkWire",
+  "description": "Personal daily news digest & curated feed briefing",
+  "author": "CrossPoint",
+  "icon": "Book",
+  "orientation": "portrait",
+  "version": "1.0.1",
+  "sleepScreen": false
+}

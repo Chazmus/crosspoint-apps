@@ -54,6 +54,7 @@ class SimRenderer {
 
   bool drawBitmapFile(int x, int y, const std::string& fullPath);
   void drawSprite(int x, int y, int w, int h, const uint8_t* ink, const uint8_t* sil);
+  void drawQrCode(int x, int y, int w, int h, const std::string& text);
   bool saveBmp(const std::string& path) const;
 
   const uint32_t* getPixels() const { return pixels_.data(); }

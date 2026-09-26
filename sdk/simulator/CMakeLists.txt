@@ -11,8 +11,9 @@ pkg_check_modules(CURL REQUIRED IMPORTED_TARGET libcurl)
 
 file(GLOB LUA_SOURCES "lua/*.c")
 file(GLOB SIM_SOURCES "src/*.cpp")
+file(GLOB SIM_C_SOURCES "src/*.c")
 
-add_executable(crosspoint-sim ${LUA_SOURCES} ${SIM_SOURCES})
+add_executable(crosspoint-sim ${LUA_SOURCES} ${SIM_SOURCES} ${SIM_C_SOURCES})
 
 target_include_directories(crosspoint-sim PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src

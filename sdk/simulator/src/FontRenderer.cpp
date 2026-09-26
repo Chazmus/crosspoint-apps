@@ -119,18 +119,50 @@ bool FontRenderer::loadFonts(const std::string& assetsDir) {
   return true;
 }
 
+static uint32_t decodeUtf8(const char*& ptr, const char* end) {
+  if (ptr >= end) return 0;
+  uint8_t c = static_cast<uint8_t>(*ptr++);
+  if (c < 0x80) return c;
+  if ((c & 0xE0) == 0xC0) {
+    if (ptr >= end) return 0;
+    uint32_t cp = (c & 0x1F) << 6;
+    cp |= (*ptr++ & 0x3F);
+    return cp;
+  }
+  if ((c & 0xF0) == 0xE0) {
+    if (ptr + 1 >= end) return 0;
+    uint32_t cp = (c & 0x0F) << 12;
+    cp |= ((*ptr++ & 0x3F) << 6);
+    cp |= (*ptr++ & 0x3F);
+    return cp;
+  }
+  if ((c & 0xF8) == 0xF0) {
+    if (ptr + 2 >= end) return 0;
+    uint32_t cp = (c & 0x07) << 18;
+    cp |= ((*ptr++ & 0x3F) << 12);
+    cp |= ((*ptr++ & 0x3F) << 6);
+    cp |= (*ptr++ & 0x3F);
+    return cp;
+  }
+  return c;
+}
+
 int FontRenderer::getTextWidth(int fontId, const std::string& text) {
   LoadedFont* font = impl_->getFont(fontId);
   if (!font) return static_cast<int>(text.size() * 10);
 
   float width = 0.0f;
-  for (size_t i = 0; i < text.size(); ++i) {
-    const char c = text[i];
+  const char* p = text.data();
+  const char* end = p + text.size();
+  while (p < end) {
+    uint32_t c = decodeUtf8(p, end);
     int advance, lsb;
     stbtt_GetCodepointHMetrics(&font->info, c, &advance, &lsb);
     width += advance * font->scale;
-    if (i + 1 < text.size()) {
-      width += stbtt_GetCodepointKernAdvance(&font->info, c, text[i + 1]) * font->scale;
+    if (p < end) {
+      const char* nextP = p;
+      uint32_t nextC = decodeUtf8(nextP, end);
+      width += stbtt_GetCodepointKernAdvance(&font->info, c, nextC) * font->scale;
     }
   }
   return static_cast<int>(std::round(width));
@@ -160,8 +192,10 @@ void FontRenderer::drawText(int fontId, int x, int y, const std::string& text, b
   const uint8_t tg = (targetColor >> 8) & 0xFF;
   const uint8_t tb = targetColor & 0xFF;
 
-  for (size_t i = 0; i < text.size(); ++i) {
-    const char c = text[i];
+  const char* p = text.data();
+  const char* end = p + text.size();
+  while (p < end) {
+    uint32_t c = decodeUtf8(p, end);
     if (c == '\n') continue;
 
     int advance, lsb;
@@ -208,8 +242,10 @@ void FontRenderer::drawText(int fontId, int x, int y, const std::string& text, b
     }
 
     curX += advance * font->scale;
-    if (i + 1 < text.size()) {
-      curX += stbtt_GetCodepointKernAdvance(&font->info, c, text[i + 1]) * font->scale;
+    if (p < end) {
+      const char* nextP = p;
+      uint32_t nextC = decodeUtf8(nextP, end);
+      curX += stbtt_GetCodepointKernAdvance(&font->info, c, nextC) * font->scale;
     }
   }
 }

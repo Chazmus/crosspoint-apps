@@ -165,6 +165,7 @@ The host runtime calls these global functions in `main.lua`:
 - `gfx.getLineHeight(fontId)`
 - `gfx.drawSprite(x, y, w, h, dataTable, [color])`: 1-bit table (`1`=opaque, `0`=transparent).
 - `gfx.drawBitmapFile(x, y, filepath)`: 1-bit BMP from SD card.
+- `gfx.drawQrCode(x, y, w, h, text)`: Renders 1-bit QR code centered within bounding box.
 - `gfx.displayBuffer([mode])`: `gfx.REFRESH_FAST`, `REFRESH_HALF`, `REFRESH_FULL`.
 
 ### `input` Module
@@ -208,6 +209,8 @@ Apps can split complex logic across multiple files using standard Lua `require("
 - `crosspoint.withWifi(callback)`: Preferred RAII-style scoped Wi-Fi connection. Automatically connects on-demand and guarantees Wi-Fi disconnects when `callback(connected)` returns or throws an error.
 - `crosspoint.disconnectWifi()`: Disconnects Wi-Fi immediately to conserve battery.
 - `crosspoint.httpGet(url)`: Performs HTTP GET over Wi-Fi (or libcurl in simulator).
+- `crosspoint.getBattery()`: Returns table with battery metrics: `{ percentage = <int>, isCharging = <bool> }`.
+- `crosspoint.getTime()`: Returns table with local RTC/time: `{ year = <int>, month = <int>, day = <int>, hour = <int>, min = <int>, sec = <int> }`.
 - `crosspoint.setSleepApp(appId)`: Registers app for sleep screen takeover.
 - `crosspoint.getSleepApp()`: Returns current sleep app ID.
 - `crosspoint.clearSleepApp()`: Restores default sleep screen.
