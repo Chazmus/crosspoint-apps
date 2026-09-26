@@ -4,9 +4,12 @@ local Engine = require("engine")
 local json = require("json")
 
 local puzzleView = {
+    game = nil,
     puzzleBoard = {},
+    playerColor = "w",
     selectedSq = -1,
     hintSq = -1,
+    legalDests = {},
     statusMsg = "Daily Puzzle - Loading...",
     rating = 1500,
     themes = "tactics",
@@ -17,89 +20,26 @@ local puzzleView = {
     initialFen = ""
 }
 
-local function clearPuzzleBoard()
-    for i = 0, 63 do
-        puzzleView.puzzleBoard[i] = "."
-    end
-end
-
 function puzzleView.loadPuzzleFen(fen)
-    clearPuzzleBoard()
-    if not fen then return end
-    local parts = {}
-    for p in fen:gmatch("%S+") do table.insert(parts, p) end
-    local boardPart = parts[1] or ""
-
-    local rank = 7
-    local file = 0
-    for i = 1, #boardPart do
-        local c = boardPart:sub(i, i)
-        if c == '/' then
-            rank = rank - 1
-            file = 0
-        elseif c:match("%d") then
-            file = file + tonumber(c)
-        else
-            if file < 8 and rank >= 0 then
-                puzzleView.puzzleBoard[rank * 8 + file] = c
-                file = file + 1
-            end
-        end
-    end
-
-    puzzleView.playerWhite = (parts[2] ~= "b")
+    if not fen or fen == "" then return end
+    puzzleView.game = Engine.newGame(fen)
+    puzzleView.puzzleBoard = puzzleView.game.board
+    puzzleView.playerColor = puzzleView.game.turn
+    puzzleView.playerWhite = (puzzleView.playerColor == "w")
+    puzzleView.selectedSq = -1
+    puzzleView.hintSq = -1
+    puzzleView.legalDests = {}
 end
 
 function puzzleView.applyPuzzleMove(moveStr)
-    if not moveStr or #moveStr < 4 then return false end
-    local fromSq = Engine.notationToSquare(moveStr:sub(1, 2))
-    local toSq = Engine.notationToSquare(moveStr:sub(3, 4))
-    if fromSq < 0 or toSq < 0 then return false end
-
-    local piece = puzzleView.puzzleBoard[fromSq]
-    if not piece or piece == "." then return false end
-
-    -- Castling Rook moves
-    if piece == "K" and fromSq == 4 then
-        if toSq == 6 then
-            puzzleView.puzzleBoard[5] = puzzleView.puzzleBoard[7]
-            puzzleView.puzzleBoard[7] = "."
-        elseif toSq == 2 then
-            puzzleView.puzzleBoard[3] = puzzleView.puzzleBoard[0]
-            puzzleView.puzzleBoard[0] = "."
-        end
-    elseif piece == "k" and fromSq == 60 then
-        if toSq == 62 then
-            puzzleView.puzzleBoard[61] = puzzleView.puzzleBoard[63]
-            puzzleView.puzzleBoard[63] = "."
-        elseif toSq == 58 then
-            puzzleView.puzzleBoard[59] = puzzleView.puzzleBoard[56]
-            puzzleView.puzzleBoard[56] = "."
-        end
+    if not puzzleView.game or not moveStr or #moveStr < 4 then return false end
+    local m = Engine.uciToMove(moveStr)
+    if not m then return false end
+    local ok = Engine.makeMove(puzzleView.game, m)
+    if ok then
+        puzzleView.puzzleBoard = puzzleView.game.board
     end
-
-    -- En passant capture
-    local fromFile, _ = Engine.squareToFileRank(fromSq)
-    local toFile, _ = Engine.squareToFileRank(toSq)
-    if (piece == "P" or piece == "p") and fromFile ~= toFile and puzzleView.puzzleBoard[toSq] == "." then
-        if piece == "P" then
-            puzzleView.puzzleBoard[toSq - 8] = "."
-        else
-            puzzleView.puzzleBoard[toSq + 8] = "."
-        end
-    end
-
-    puzzleView.puzzleBoard[fromSq] = "."
-
-    -- Promotion
-    if #moveStr >= 5 then
-        local prom = moveStr:sub(5, 5)
-        puzzleView.puzzleBoard[toSq] = (piece == piece:upper()) and prom:upper() or prom:lower()
-    else
-        puzzleView.puzzleBoard[toSq] = piece
-    end
-
-    return true
+    return ok
 end
 
 function puzzleView.loadPuzzle()
@@ -205,7 +145,8 @@ function puzzleView.draw()
 
     -- Draw Board (400x400)
     local flipped = not puzzleView.playerWhite
-    ui.drawBoard(puzzleView.puzzleBoard, 26, 50, 400, flipped, puzzleView.selectedSq, puzzleView.hintSq, nil)
+    local boardData = (puzzleView.game and puzzleView.game.board) or puzzleView.puzzleBoard or {}
+    ui.drawBoard(boardData, 26, 50, 400, flipped, puzzleView.selectedSq, puzzleView.hintSq, puzzleView.legalDests)
 
     -- Side info panel
     local panelX = 445
@@ -251,73 +192,91 @@ function puzzleView.draw()
 end
 
 function puzzleView.handleSquareTap(sq)
-    if puzzleView.isSolved or sq < 0 or sq > 63 then return end
+    if puzzleView.isSolved or not puzzleView.game or sq < 0 or sq > 63 then return end
 
-    local p = puzzleView.puzzleBoard[sq]
-    local isOwn = puzzleView.playerWhite and Engine.isWhitePiece(p) or Engine.isBlackPiece(p)
+    local p = puzzleView.game.board[sq]
+    local playerColor = puzzleView.playerColor
 
-    -- Case 1: No piece selected
-    if puzzleView.selectedSq == -1 then
-        if isOwn then
-            puzzleView.selectedSq = sq
-            puzzleView.hintSq = -1
-            crosspoint.requestUpdate()
-        end
-        return
-    end
-
-    -- Case 2: Tapped already-selected square: deselect
+    -- Case 1: Tapping already-selected square: deselect
     if sq == puzzleView.selectedSq then
         puzzleView.selectedSq = -1
+        puzzleView.legalDests = {}
         crosspoint.requestUpdate()
         return
     end
 
-    -- Case 3: Tapped another piece of own color: switch selection
-    if isOwn then
-        puzzleView.selectedSq = sq
-        puzzleView.hintSq = -1
-        crosspoint.requestUpdate()
-        return
-    end
+    -- Case 2: Tapping a legal destination square for currently selected piece
+    if puzzleView.selectedSq ~= -1 and puzzleView.legalDests[sq] then
+        local chosenMove = puzzleView.legalDests[sq]
+        local fromP = puzzleView.game.board[puzzleView.selectedSq]
+        local _, toRank = Engine.squareToFileRank(sq)
+        if ((fromP == "P" and toRank == 7) or (fromP == "p" and toRank == 0)) and not chosenMove.promo then
+            chosenMove.promo = "q"
+        end
 
-    -- Case 4: Attempting move from selectedSq to sq
-    local uci = Engine.squareToNotation(puzzleView.selectedSq) .. Engine.squareToNotation(sq)
-    local fromP = puzzleView.puzzleBoard[puzzleView.selectedSq]
-    local _, toRank = Engine.squareToFileRank(sq)
-    if fromP == "P" and toRank == 7 then uci = uci .. "q" end
-    if fromP == "p" and toRank == 0 then uci = uci .. "q" end
+        local uci = Engine.moveToUci(chosenMove)
+        local expected = puzzleView.solution[puzzleView.moveIndex]
 
-    puzzleView.selectedSq = -1
-
-    local expected = puzzleView.solution[puzzleView.moveIndex]
-    if expected and uci == expected then
-        -- Correct move!
-        puzzleView.applyPuzzleMove(uci)
-        puzzleView.moveIndex = puzzleView.moveIndex + 1
-        puzzleView.hintSq = -1
-
-        if puzzleView.moveIndex > #puzzleView.solution then
-            puzzleView.isSolved = true
-            puzzleView.statusMsg = "Puzzle Solved! Excellent!"
-        else
-            -- Opponent response move
-            local oppMove = puzzleView.solution[puzzleView.moveIndex]
-            puzzleView.applyPuzzleMove(oppMove)
+        if expected and (uci == expected or uci:lower() == expected:lower()) then
+            -- Correct move! Make the player move on the game board
+            Engine.makeMove(puzzleView.game, chosenMove)
+            puzzleView.puzzleBoard = puzzleView.game.board
             puzzleView.moveIndex = puzzleView.moveIndex + 1
+            puzzleView.selectedSq = -1
+            puzzleView.legalDests = {}
+            puzzleView.hintSq = -1
 
             if puzzleView.moveIndex > #puzzleView.solution then
                 puzzleView.isSolved = true
-                puzzleView.statusMsg = "Puzzle Solved!"
+                puzzleView.statusMsg = "Puzzle Solved! Excellent!"
             else
-                puzzleView.statusMsg = "Opponent played " .. oppMove .. ". Your turn!"
+                -- Opponent response move
+                local oppUci = puzzleView.solution[puzzleView.moveIndex]
+                local oppMoveObj = Engine.uciToMove(oppUci)
+                if oppMoveObj then
+                    Engine.makeMove(puzzleView.game, oppMoveObj)
+                    puzzleView.puzzleBoard = puzzleView.game.board
+                end
+                puzzleView.moveIndex = puzzleView.moveIndex + 1
+
+                if puzzleView.moveIndex > #puzzleView.solution then
+                    puzzleView.isSolved = true
+                    puzzleView.statusMsg = "Puzzle Solved!"
+                else
+                    puzzleView.statusMsg = "Opponent played " .. oppUci .. ". Your turn!"
+                end
             end
+        else
+            -- Legal move, but not the puzzle solution
+            puzzleView.statusMsg = "Not the best move. Try again!"
+            puzzleView.selectedSq = -1
+            puzzleView.legalDests = {}
         end
-    else
-        puzzleView.statusMsg = "Not the best move. Try again!"
+        crosspoint.requestUpdate()
+        return
     end
 
-    crosspoint.requestUpdate()
+    -- Case 3: Tapping own piece of player color: select and calculate legal moves
+    if Engine.isColorPiece(p, playerColor) then
+        puzzleView.selectedSq = sq
+        puzzleView.hintSq = -1
+        puzzleView.legalDests = {}
+        local legals = Engine.getLegalMoves(puzzleView.game, sq)
+        for _, m in ipairs(legals) do
+            if not puzzleView.legalDests[m.to] or m.promo == "q" then
+                puzzleView.legalDests[m.to] = m
+            end
+        end
+        crosspoint.requestUpdate()
+        return
+    end
+
+    -- Case 4: Tapped enemy piece or empty square that is not a legal destination: deselect
+    if puzzleView.selectedSq ~= -1 then
+        puzzleView.selectedSq = -1
+        puzzleView.legalDests = {}
+        crosspoint.requestUpdate()
+    end
 end
 
 function puzzleView.onTouch(x, y)

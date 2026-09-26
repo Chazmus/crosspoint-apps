@@ -319,6 +319,41 @@ run_test("Daily Puzzle handles Wi-Fi cancellation & network error safely", funct
     assert_true(true, "Handled nil HTTP response safely")
 end)
 
+run_test("Daily Puzzle piece color filtering and legal move highlights", function()
+    setupMocks()
+    local puzzle = require("views.puzzle")
+    puzzle.loadPuzzle() -- Loads daily.json (Black to move)
+    assert_eq(puzzle.playerColor, "b", "Puzzle is Black to move")
+
+    -- 1. Attempt to select opponent's White piece (e.g. d5, square 35)
+    puzzle.handleSquareTap(35)
+    assert_eq(puzzle.selectedSq, -1, "Opponent White piece cannot be selected")
+    assert_eq(next(puzzle.legalDests), nil, "No legal destinations generated for enemy piece")
+
+    -- 2. Select own Black piece (Bishop on c6, square 42)
+    puzzle.handleSquareTap(42)
+    assert_eq(puzzle.selectedSq, 42, "Own piece on c6 selected")
+    assert_true(puzzle.legalDests[35] ~= nil, "Capturing d5 is a highlighted legal destination")
+    assert_true(puzzle.legalDests[33] ~= nil, "Moving to b5 is a highlighted legal destination")
+
+    -- 3. Tap an illegal square (e.g. e7, square 52, which is blocked) -> deselects cleanly without warning
+    puzzle.handleSquareTap(52)
+    assert_eq(puzzle.selectedSq, -1, "Illegal target deselects piece cleanly")
+    assert_true(puzzle.statusMsg ~= "Not the best move. Try again!", "No warning on clicking non-destinations")
+
+    -- 4. Select c6 again, then play legal move b5 (square 33) which is not the puzzle solution
+    puzzle.handleSquareTap(42)
+    puzzle.handleSquareTap(33)
+    assert_eq(puzzle.statusMsg, "Not the best move. Try again!", "Warning given when legal move is not solution")
+    assert_eq(puzzle.moveIndex, 1, "Move index does not advance on incorrect attempt")
+
+    -- 5. Select c6 again, then play the correct solution move (c6xd5, square 35)
+    puzzle.handleSquareTap(42)
+    puzzle.handleSquareTap(35)
+    assert_eq(puzzle.moveIndex, 3, "Puzzle advances after player move and opponent response")
+    assert_true(puzzle.statusMsg:find("Opponent played") ~= nil, "Opponent response announced")
+end)
+
 -- ===========================================================================
 -- 3. Play vs Computer Game Mode Tests
 -- ===========================================================================

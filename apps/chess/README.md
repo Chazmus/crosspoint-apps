@@ -4,7 +4,7 @@ A complete chess application for CrossPoint Reader (ESP32-S3 / E-Ink), featuring
 
 ![Category](https://img.shields.io/badge/Category-Games%20%26%20Puzzles-blue)
 ![Orientation](https://img.shields.io/badge/Orientation-Landscape%20(800x480)-green)
-![Version](https://img.shields.io/badge/Version-1.1.2-orange)
+![Version](https://img.shields.io/badge/Version-1.1.3-orange)
 
 ---
 
@@ -29,7 +29,8 @@ Designed specifically for reflective, monochrome 800x480 E-Ink displays with hig
     - **Medium (~1350 Elo)**: Depth 2 search with positional evaluation and material awareness (~0.2–0.4s on ESP32).
     - **Hard (~1600 Elo)**: Depth 3 search with tactical combinations, piece-square development, and alpha-beta pruning (~1.5–2.5s on ESP32).
 - **High-Contrast Staunton Pieces**: Custom 40x40 dual-layer 1-bit sprites derived from Colin M.L. Burnett's open-source piece vectors. Solid fills for Light pieces and contrast halos for Dark pieces ensure pieces remain legible on white and dithered squares.
-- **Interactive Move Guidance**:
+- **Unified Move Guidance (Both Game & Puzzle Modes)**:
+  - Strict turn/color filtering prevents selecting opponent pieces in both Play vs Computer and Daily Puzzle modes.
   - Tap your piece to highlight all legal destination squares (dots for quiet moves, rings for captures).
   - Tap destination to execute move.
   - Automatic promotion to Queen.
@@ -41,7 +42,7 @@ Designed specifically for reflective, monochrome 800x480 E-Ink displays with hig
   - **Flip Board**: Toggles board orientation between White and Black perspectives.
 - **Daily Puzzle Mode**:
   - On-demand Wi-Fi sync via `crosspoint.withWifi` downloads the daily Lichess puzzle and disconnects Wi-Fi immediately to conserve battery.
-  - Interactive solution verification with hints and resets.
+  - Interactive solution verification with hints, resets, and legal move guidance.
   - Offline fallback dataset (`daily.json`).
 - **Ambient Sleep Screen (`views/sleep.lua`)**:
   - Shows your ongoing game (board, move number, turn indicator) when put to sleep during a match.

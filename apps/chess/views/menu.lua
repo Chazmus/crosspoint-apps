@@ -10,7 +10,7 @@ function menu.draw(hasSavedGame, puzzleRating, puzzleThemes, isSleepActive)
     -- Header banner
     gfx.fillRect(0, 0, w, 44, true)
     gfx.drawText(gfx.FONT_UI_12, 24, 10, "CROSSPOINT CHESS", false)
-    local sub = "v1.1.2 - E-Ink Edition"
+    local sub = "v1.1.3 - E-Ink Edition"
     local sw = gfx.getTextWidth(gfx.FONT_SMALL, sub)
     gfx.drawText(gfx.FONT_SMALL, w - sw - 24, 14, sub, false)
 

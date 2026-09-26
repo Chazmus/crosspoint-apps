@@ -59,6 +59,8 @@ function onBack()
         gameView.selectedSq = -1
         gameView.legalDests = {}
         puzzleView.selectedSq = -1
+        puzzleView.legalDests = {}
+        puzzleView.hintSq = -1
         crosspoint.requestUpdate()
         return true  -- Consumed by app: stay in app, return to menu
     end
