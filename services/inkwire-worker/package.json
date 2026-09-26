@@ -1,0 +1,20 @@
+{
+  "name": "inkwire-worker",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Cloudflare Worker feed aggregator & AI summarizer for CrossPoint InkWire",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "types": "wrangler types"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^4.5.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241022.0",
+    "typescript": "^5.6.3",
+    "wrangler": "^3.84.1"
+  }
+}

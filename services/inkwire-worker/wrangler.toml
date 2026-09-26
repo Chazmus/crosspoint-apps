@@ -1,0 +1,23 @@
+name = "inkwire-worker"
+main = "src/index.ts"
+compatibility_date = "2024-09-01"
+
+[triggers]
+crons = ["0 6 * * *"]
+
+[ai]
+binding = "AI"
+
+# Optional KV namespace for persistence across worker cold starts.
+# You can create one via: npx wrangler kv:namespace create EDITION_KV
+# and paste the returned ID here:
+# [[kv_namespaces]]
+# binding = "EDITION_KV"
+# id = "..."
+
+[vars]
+WEATHER_CITY = "London"
+WEATHER_LAT = "51.5074"
+WEATHER_LON = "-0.1278"
+# Set via `npx wrangler secret put GEMINI_API_KEY` if you want Google Gemini 1.5 Flash
+# Otherwise the worker defaults to Cloudflare Workers AI (@cf/meta/llama-3.1-8b-instruct)

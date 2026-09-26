@@ -12,3 +12,7 @@ Thumbs.db
 sdk/simulator/build/
 **/.storage/
 *.bmp
+
+# Node & Wrangler
+node_modules/
+.wrangler/
