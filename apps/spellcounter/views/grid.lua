@@ -115,6 +115,37 @@ function grid.drawTopBar(w, headerH, state)
     end
 end
 
+function grid.getMenuButtonBounds(rect)
+    if not rect then return 0, 0, 0, 0 end
+    local x = safeNum(rect.x, 0)
+    local y = safeNum(rect.y, 0)
+    local w = safeNum(rect.w, 100)
+    local btnW = 54
+    local btnH = 26
+    local btnX = x + w - btnW - 8
+    local btnY = y + 4
+    return btnX, btnY, btnW, btnH
+end
+
+function grid.isMenuButtonTouch(x, y, rect)
+    if not rect then return false end
+    local rx = safeNum(rect.x, 0)
+    local ry = safeNum(rect.y, 0)
+    local rw = safeNum(rect.w, 100)
+    local rh = safeNum(rect.h, 100)
+
+    -- Generous touch target (hitbox) covering the top-right menu region:
+    -- - Extends to the top (ry) and right (rx + rw) edges of the card
+    -- - Width: at least 78px (or 45% of card width, capped at 78px)
+    -- - Height: 54px (well above the + button which starts at ry + 76 or lower)
+    local hitW = math.min(math.floor(rw * 0.45), 78)
+    local hitH = math.min(math.floor(rh * 0.28), 54)
+    local hitX = rx + rw - hitW
+    local hitY = ry
+
+    return x >= hitX and x <= rx + rw and y >= hitY and y <= ry + hitH
+end
+
 function grid.drawPlayerCard(p, rect, isSelected, state)
     if not rect or type(rect) ~= "table" then return end
     p = stateEngine.ensurePlayer(p, 1, state.startingLife or 40)
@@ -138,39 +169,44 @@ function grid.drawPlayerCard(p, rect, isSelected, state)
     end
 
     -- Card Header Bar
-    local cardHeaderH = 30
+    local cardHeaderH = 34
     local pName = p.name or ("P" .. p.id)
     if gfx and gfx.drawText then
-        gfx.drawText(ui.getFont("ui_10"), x + 12, y + 6, pName, fgCol)
-    end
-
-    -- Status Badges (Monarch / Initiative)
-    local badgeX = x + ui.getTextWidth(ui.getFont("ui_10"), pName) + 20
-    if state.monarch == p.id then
-        local mw = ui.getTextWidth(ui.getFont("small"), "CROWN") + 12
-        ui.fillRounded(badgeX, y + 5, mw, 18, 4, fgCol)
-        if gfx and gfx.drawText then
-            gfx.drawText(ui.getFont("small"), badgeX + 6, y + 7, "CROWN", bgCol)
-        end
-        badgeX = badgeX + mw + 6
-    end
-    if state.initiative == p.id then
-        local iw = ui.getTextWidth(ui.getFont("small"), "INIT") + 12
-        ui.fillRounded(badgeX, y + 5, iw, 18, 4, fgCol)
-        if gfx and gfx.drawText then
-            gfx.drawText(ui.getFont("small"), badgeX + 6, y + 7, "INIT", bgCol)
-        end
-        badgeX = badgeX + iw + 6
+        gfx.drawText(ui.getFont("ui_10"), x + 12, y + 7, pName, fgCol)
     end
 
     -- Card Menu / Counter detail icon [···] top right
-    local menuBtnW = 44
-    local menuBtnH = 24
-    local menuBtnX = x + w - menuBtnW - 8
-    local menuBtnY = y + 4
+    local menuBtnX, menuBtnY, menuBtnW, menuBtnH = grid.getMenuButtonBounds(rect)
+
+    -- Status Badges (Monarch / Initiative)
+    local badgeX = x + ui.getTextWidth(ui.getFont("ui_10"), pName) + 18
+    if state.monarch == p.id then
+        local mw = ui.getTextWidth(ui.getFont("small"), "CROWN") + 12
+        if badgeX + mw < menuBtnX - 4 then
+            ui.fillRounded(badgeX, y + 6, mw, 20, 4, fgCol)
+            if gfx and gfx.drawText then
+                gfx.drawText(ui.getFont("small"), badgeX + 6, y + 8, "CROWN", bgCol)
+            end
+            badgeX = badgeX + mw + 6
+        end
+    end
+    if state.initiative == p.id then
+        local iw = ui.getTextWidth(ui.getFont("small"), "INIT") + 12
+        if badgeX + iw < menuBtnX - 4 then
+            ui.fillRounded(badgeX, y + 6, iw, 20, 4, fgCol)
+            if gfx and gfx.drawText then
+                gfx.drawText(ui.getFont("small"), badgeX + 6, y + 8, "INIT", bgCol)
+            end
+            badgeX = badgeX + iw + 6
+        end
+    end
+
     ui.drawRounded(menuBtnX, menuBtnY, menuBtnW, menuBtnH, 6, 1, fgCol)
     if gfx and gfx.drawText then
-        gfx.drawText(ui.getFont("small"), menuBtnX + 11, menuBtnY + 4, "...", fgCol)
+        local font = ui.getFont("ui_10")
+        local tw = ui.getTextWidth(font, "...")
+        local th = ui.getLineHeight(font)
+        gfx.drawText(font, menuBtnX + math.floor((menuBtnW - tw) / 2), menuBtnY + math.floor((menuBtnH - th) / 2) - 1, "...", fgCol)
     end
 
     -- Header divider

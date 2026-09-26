@@ -4,7 +4,7 @@ A feature-rich Magic: The Gathering (MTG) life and counter tracking application 
 
 ![Category](https://img.shields.io/badge/Category-Games%20%26%20Utilities-blue)
 ![Orientation](https://img.shields.io/badge/Orientation-Landscape%20(800x480)-green)
-![Version](https://img.shields.io/badge/Version-1.0.5-orange)
+![Version](https://img.shields.io/badge/Version-1.0.7-orange)
 
 ---
 
@@ -59,7 +59,9 @@ Spell Counter is structured into decoupled, testable modules using Lua 5.4 `requ
 ```text
 apps/spellcounter/
 ├── manifest.json              # App metadata, landscape orientation, sleep flag
-├── main.lua                   # Main entry point and lifecycle callback coordination
+├── main.lua                   # Concise lifecycle coordinator and top-level router
+├── modal_manager.lua          # Modal dialog manager and tools actions coordinator
+├── hold_handler.lua           # Touch-and-hold gesture engine for rapid ±10 ticking
 ├── state.lua                  # Game state engine, validation, and JSON SD persistence
 ├── ui.lua                     # Shared UI drawing components (buttons, cards, fonts)
 ├── json.lua                   # Pure-Lua JSON serializer for SD storage
@@ -69,7 +71,7 @@ apps/spellcounter/
 │   ├── tools_modal.lua        # Tools dialog (Dice roller, coin flip, monarch claim)
 │   ├── settings_modal.lua     # Settings dialog (Player count, starting life, sleep toggle)
 │   └── sleep_view.lua         # E-Ink sleep screen match summary renderer
-├── test_spellcounter.lua      # Comprehensive headless unit test suite (64 test cases)
+├── test_spellcounter.lua      # Comprehensive headless unit test suite (93 test cases)
 └── README.md                  # This documentation
 ```
 
@@ -80,7 +82,7 @@ apps/spellcounter/
 ### Touch Input
 - **Tap `+` / `-`**: Adjusts player life by ±1.
 - **Press & Hold `+` / `-`**: Ticks player life by ±10 (once per second while held).
-- **Tap `...` (top-right of player card)**: Opens player details (commander damage, poison, storm, tax).
+- **Tap `...` (top-right of player card)**: Opens player details (commander damage, poison, storm, tax). Features a generous touch target (>= 76×54px) for reliable tapping on capacitive E-Ink screens.
 - **Tap `🎲` (Tools, top right)**: Opens Dice / Coin / Monarch modal.
 - **Tap `Reset` (top right)**: Prompts to reset the current match.
 

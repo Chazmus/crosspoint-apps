@@ -1,7 +1,7 @@
 {
   "name": "CrossPoint Official Apps",
   "description": "Curated community Lua applications for CrossPoint reader",
-  "version": 15,
+  "version": 17,
   "apps": [
     {
       "id": "chess",
@@ -42,7 +42,7 @@
     {
       "id": "spellcounter",
       "name": "Spell Counter",
-      "version": "1.0.5",
+      "version": "1.0.7",
       "author": "Chazmus",
       "description": "MTG life and counter tracker for up to 4 players",
       "icon": "Blocks",
@@ -50,6 +50,8 @@
       "files": [
         "manifest.json",
         "main.lua",
+        "modal_manager.lua",
+        "hold_handler.lua",
         "state.lua",
         "ui.lua",
         "json.lua",

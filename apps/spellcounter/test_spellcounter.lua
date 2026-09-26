@@ -475,6 +475,85 @@ run_test("test_grid_fuzzing", function()
     assert_true(ok, "onDraw survived after fuzzing")
 end)
 
+-- 13. Enlarged Card Menu Button (...) Hitbox Tests
+run_test("test_menu_button_hitbox", function()
+    local gridModule = require("views.grid")
+    local rects = gridModule.getCardRects(800, 480, 4)
+    local r1 = rects[1]
+    assert_true(r1 ~= nil, "Card 1 rect exists")
+
+    local btnX, btnY, btnW, btnH = gridModule.getMenuButtonBounds(r1)
+    assert_true(btnW >= 50, "Visual button width enlarged (>= 50px)")
+    assert_true(btnH >= 24, "Visual button height valid")
+
+    -- 1. Center of visual button should be a hit
+    assert_true(gridModule.isMenuButtonTouch(btnX + math.floor(btnW / 2), btnY + math.floor(btnH / 2), r1), "Center of button is hit")
+
+    -- 2. Top-right corner of card (above & to the right of visual button) should be a hit
+    assert_true(gridModule.isMenuButtonTouch(r1.x + r1.w - 1, r1.y + 1, r1), "Top-right edge of card is hit")
+
+    -- 3. Left margin (just to the left of the button) should be a hit
+    assert_true(gridModule.isMenuButtonTouch(btnX - 10, btnY + 10, r1), "Left margin of button is hit")
+
+    -- 4. Lower margin (in header divider / just below button) should be a hit
+    assert_true(gridModule.isMenuButtonTouch(btnX + 10, r1.y + 48, r1), "Lower margin below button is hit")
+
+    -- 5. Far below (e.g. at y + 80, in the life + button region) must NOT be a hit
+    assert_true(not gridModule.isMenuButtonTouch(btnX + 10, r1.y + 80, r1), "Plus button area is not menu hit")
+
+    -- 6. Left side of card (e.g. player name) must NOT be a hit
+    assert_true(not gridModule.isMenuButtonTouch(r1.x + 20, r1.y + 10, r1), "Card left side is not menu hit")
+
+    -- 7. Nil safety
+    assert_true(not gridModule.isMenuButtonTouch(100, 100, nil), "Nil rect safely returns false")
+
+    -- 8. Integration: Tapping near top-right corner of card triggers player_detail and preserves life
+    ui.modal = nil
+    local p1LifeBefore = state.players[1].life
+    -- Tap at the very top-right edge of P1 card (r1.x + r1.w - 2, r1.y + 2)
+    onTouch(r1.x + r1.w - 2, r1.y + 2)
+    assert_eq(ui.modal, "player_detail", "Top-right edge tap opened player detail modal")
+    assert_eq(state.players[1].life, p1LifeBefore, "Life unchanged on menu tap")
+    onBack()
+    assert_eq(ui.modal, nil, "Modal closed")
+
+    -- 9. Integration: getLifeTouchTarget returns nil within menu hitbox (prevents accidental hold ticks)
+    assert_true(sc.getLifeTouchTarget(r1.x + r1.w - 2, r1.y + 2) == nil, "getLifeTouchTarget ignores menu hitbox")
+    assert_true(sc.getLifeTouchTarget(btnX - 10, btnY + 10) == nil, "getLifeTouchTarget ignores extended left margin")
+    assert_true(sc.getLifeTouchTarget(btnX + 10, r1.y + 45) == nil, "getLifeTouchTarget ignores extended lower margin")
+end)
+
+-- 14. Modular Managers (modal_manager & hold_handler) Unit Tests
+run_test("test_modular_managers", function()
+    local mm = require("modal_manager")
+    local hh = require("hold_handler")
+
+    -- Modal manager API checks
+    assert_true(mm ~= nil, "modal_manager required")
+    mm.init(2)
+    assert_eq(mm.isOpen(), false, "modal_manager initialized closed")
+    assert_eq(mm.getActive(), nil, "modal_manager getActive is nil")
+    assert_eq(mm.ui.detailPlayer, 2, "modal_manager default detail player set")
+
+    mm.open("tools")
+    assert_eq(mm.isOpen(), true, "modal_manager isOpen true when open")
+    assert_eq(mm.getActive(), "tools", "modal_manager active modal is tools")
+
+    mm.close()
+    assert_eq(mm.isOpen(), false, "modal_manager close resets open state")
+    assert_eq(mm.getActive(), nil, "modal_manager active is nil after close")
+
+    -- Hold handler API checks
+    assert_true(hh ~= nil, "hold_handler required")
+    hh.reset()
+    assert_eq(hh.holdState.active, false, "hold_handler reset active state")
+    assert_eq(hh.wasTapSuppressed(), false, "hold_handler wasTapSuppressed false initially")
+
+    hh.holdState.hasTicked = true
+    assert_eq(hh.wasTapSuppressed(), true, "hold_handler wasTapSuppressed true after tick")
+    assert_eq(hh.wasTapSuppressed(), false, "hold_handler wasTapSuppressed resets after check")
+end)
+
 -- ---------------------------------------------------------------------------
 -- Summary Output
 -- ---------------------------------------------------------------------------
