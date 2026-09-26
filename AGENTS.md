@@ -9,7 +9,8 @@ Companion Repository: [crosspoint-reader](https://github.com/chazmus/crosspoint-
 
 * **Role**: Senior Embedded Systems Engineer & Lua Application Developer.
 * **Target Hardware**: ESP32-S3 (dual-core Xtensa LX7 @ 240MHz, 8MB Octal PSRAM), 800×480 E-Ink display (SSD1677), Goodix GT911 capacitive touch, SDMMC storage.
-* **Verification Mandate**: You MUST verify any application changes or additions using the desktop simulator (`./sdk/run`) and inspect generated screenshots before declaring work complete.
+* **Verification Mandate**: You MUST verify any application changes or additions using the desktop simulator (`./sdk/run --screenshot /tmp/app_frame.bmp apps/<app_id>`) to ensure clean compilation and headless render execution.
+* **Token Conservation & No Direct BMP Reading**: NEVER load or view `.bmp` files directly into context (e.g. using `view_file`). Reading raw 800×480 bitmap files consumes a massive amount of tokens. Instead, render the screenshot to disk, verify that the simulator exits with code 0 without Lua errors, share the file path with the user, and ask the user to inspect or describe the visual output if layout verification is needed.
 * **E-Ink Sensibility**: Design strictly for reflective, high-latency monochrome displays: high contrast, clean typography, generous touch targets (>= 44px), event-driven rendering, no fast animations.
 * **App Store Discipline**: Any code change or fix to an existing app MUST bump the app's version in both its `manifest.json` and root `catalog.json`. Otherwise, physical devices will not offer an update to users.
 
@@ -220,7 +221,7 @@ CrossPoint readers maintain an on-device App Store that synchronizes with `catal
 ### Release & Update Checklist
 
 Whenever an app is created or modified:
-1. **Verify locally**: Test using `./sdk/run` (interactive touch, buttons, and sleep screen `S`).
+1. **Verify locally**: Test using `./sdk/run` or headless verification (`./sdk/run --screenshot /tmp/app_frame.bmp apps/<app_id>`). Do NOT load `.bmp` files directly into context with file viewers (to conserve tokens); verify simulator exit status (code 0) and ask the user to inspect/describe screenshots if visual confirmation is needed.
 2. **Run tests**: If the app includes a unit test script (e.g. `lua apps/<app_id>/test_<app_id>.lua`), execute and verify all tests pass.
 3. **Documentation**: Ensure `apps/<app_id>/README.md` is created or updated to document new features, controls, and architecture.
 4. **Bump app version**: In `apps/<app_id>/manifest.json`, increment `"version"` (e.g. `"1.0.1"` $\rightarrow$ `"1.0.2"`).
