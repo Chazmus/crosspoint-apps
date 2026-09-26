@@ -107,11 +107,37 @@ The simulator can run headlessly (without an SDL2 window) to render frames direc
 
 ---
 
+## Hardware Serial Debug Monitor (`sdk/monitor`)
+
+For monitoring, debugging, and capturing live logs from physical CrossPoint hardware (ESP32-S3 USB CDC @ 115,200 baud):
+
+```bash
+# Auto-detect CrossPoint port and stream logs
+./sdk/monitor
+
+# Specify port manually
+./sdk/monitor /dev/ttyACM0
+./sdk/monitor COM3
+
+# Save log stream to file
+./sdk/monitor --log /tmp/crosspoint.log
+
+# Raw stream without timestamp prefixes
+./sdk/monitor --raw
+```
+
+- **Auto-Detection**: Scans for CrossPoint ESP32-S3 USB Serial / JTAG ports (`/dev/ttyACM*`, `/dev/cu.usbmodem*`, COM ports) and connects automatically.
+- **Auto-Reconnection**: Resiliently handles hardware reboots, FreeRTOS panics, and USB disconnects/reconnects without exiting.
+- **Non-Resetting Connection**: Configures `DTR=False` and `RTS=False` so opening the port does not reset the device or interrupt ongoing app sessions.
+
+---
+
 ## Project Structure
 
 ```text
 sdk/
 ├── run                      # Main entrypoint script (auto-builds & runs apps)
+├── monitor                  # Hardware serial debug monitor tool
 ├── README.md                # SDK documentation
 └── simulator/
     ├── CMakeLists.txt       # CMake build definition

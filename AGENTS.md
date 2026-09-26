@@ -56,6 +56,14 @@ You can also run headless profiling via:
 ./sdk/run --profile apps/<app_id>
 ```
 
+### Hardware Serial Monitor (`sdk/monitor`)
+Stream live firmware and Lua debug logs directly from physical CrossPoint hardware (ESP32-S3 USB CDC @ 115,200 baud) with auto-reconnection:
+```bash
+./sdk/monitor                     # Auto-detect port and stream logs
+./sdk/monitor /dev/ttyACM0        # Specify port manually
+./sdk/monitor --log session.log   # Save log stream to file
+```
+
 ---
 
 ## E-Ink Display Constraints & Design Rules

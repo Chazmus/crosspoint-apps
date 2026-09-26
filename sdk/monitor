@@ -1,0 +1,224 @@
+#!/usr/bin/env python3
+"""
+CrossPoint Serial Log Monitor
+==============================
+Connects to CrossPoint Reader (ESP32-S3 USB CDC @ 115,200 baud),
+streams live firmware and Lua debug logs with timestamps, handles
+automatic reconnection across crashes/reboots, and optionally saves
+logs to disk.
+
+Usage:
+    ./sdk/monitor [options] [port]
+
+Examples:
+    ./sdk/monitor
+    ./sdk/monitor /dev/ttyACM0
+    ./sdk/monitor --log /tmp/crosspoint.log
+    ./sdk/monitor --raw
+"""
+
+import sys
+import os
+import time
+import glob
+import signal
+import argparse
+
+try:
+    import serial
+    import serial.tools.list_ports
+except ImportError:
+    # If current python environment lacks pyserial, attempt fallback to system python3
+    if sys.executable != "/usr/bin/python3" and os.path.exists("/usr/bin/python3"):
+        import subprocess
+        res = subprocess.run(["/usr/bin/python3", "-c", "import serial"], capture_output=True)
+        if res.returncode == 0:
+            os.execv("/usr/bin/python3", ["/usr/bin/python3"] + sys.argv)
+
+    sys.stderr.write(
+        "\n[ERROR] 'pyserial' is required to run the CrossPoint Serial Monitor.\n"
+        "Please install it using:\n"
+        "    pip install pyserial\n"
+        "or your system package manager (e.g. sudo apt install python3-serial / sudo pacman -S python-pyserial).\n\n"
+    )
+    sys.exit(1)
+
+
+def find_serial_ports():
+    """Detect available serial ports on Linux, macOS, or Windows."""
+    ports = []
+    # 1. Use pyserial port list if available
+    try:
+        for p in serial.tools.list_ports.comports():
+            # Prioritize Espressif / USB JTAG / CDC devices
+            desc = (p.description or "").lower()
+            hwid = (p.hwid or "").lower()
+            if "espressif" in desc or "jtag" in desc or "303a" in hwid or "cdc" in desc:
+                ports.insert(0, p.device)
+            else:
+                ports.append(p.device)
+    except Exception:
+        pass
+
+    # 2. Fallback to glob patterns for Unix systems
+    if not ports:
+        patterns = [
+            "/dev/ttyACM*",
+            "/dev/ttyUSB*",
+            "/dev/cu.usbmodem*",
+            "/dev/cu.usbserial*",
+        ]
+        for pat in patterns:
+            ports.extend(glob.glob(pat))
+
+    return ports
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="CrossPoint ESP32-S3 Serial Log Monitor",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("port", nargs="?", default=None, help="Serial port (e.g. /dev/ttyACM0, COM3)")
+    parser.add_argument("-p", "--port-opt", dest="port_opt", default=None, help="Serial port option")
+    parser.add_argument("-b", "--baud", type=int, default=115200, help="Baud rate (default: 115200)")
+    parser.add_argument("-l", "--log", type=str, default=None, help="Path to save output log file")
+    parser.add_argument("--raw", action="store_true", help="Print raw lines without timestamp prefix")
+    args = parser.parse_args()
+
+    target_port = args.port or args.port_opt
+    baud_rate = args.baud
+    log_file_path = args.log
+    raw_mode = args.raw
+
+    # Graceful exit on Ctrl+C
+    def sig_handler(sig, frame):
+        print("\n[SDK] Exiting CrossPoint Serial Monitor.")
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, sig_handler)
+
+    print("=" * 60)
+    print("  CrossPoint ESP32-S3 Serial Log Monitor")
+    print(f"  Baud: {baud_rate}")
+    if log_file_path:
+        print(f"  Logging to: {log_file_path}")
+    print("=" * 60)
+    sys.stdout.flush()
+
+    log_file = None
+    if log_file_path:
+        try:
+            log_file = open(log_file_path, "a", buffering=1, encoding="utf-8", errors="replace")
+            log_file.write(f"\n--- Serial Session Started at {time.strftime('%Y-%m-%d %H:%M:%S')} ---\n")
+            log_file.flush()
+        except OSError as e:
+            sys.stderr.write(f"[WARN] Could not open log file '{log_file_path}': {e}\n")
+
+    last_waiting_msg = 0
+
+    while True:
+        # Determine port
+        port = target_port
+        if not port:
+            detected = find_serial_ports()
+            if detected:
+                port = detected[0]
+            else:
+                now = time.time()
+                if now - last_waiting_msg > 3:
+                    print("[SDK] Waiting for CrossPoint USB connection...")
+                    sys.stdout.flush()
+                    last_waiting_msg = now
+                time.sleep(0.5)
+                continue
+
+        ser = None
+        try:
+            # Open without toggling DTR/RTS to avoid resetting device unexpectedly
+            ser = serial.Serial(
+                port=port,
+                baudrate=baud_rate,
+                timeout=0.1,
+                xonxoff=False,
+                rtscts=False,
+                dsrdtr=False,
+            )
+
+            ts = time.strftime("%H:%M:%S")
+            conn_msg = f"[{ts}] [SDK] Connected to {port} @ {baud_rate} baud."
+            print(f"\033[32m{conn_msg}\033[0m" if sys.stdout.isatty() else conn_msg)
+            sys.stdout.flush()
+            if log_file:
+                log_file.write(conn_msg + "\n")
+                log_file.flush()
+
+            buf = b""
+            last_rx = time.time()
+
+            while True:
+                chunk = ser.read(1024)
+                now = time.time()
+                if chunk:
+                    buf += chunk
+                    last_rx = now
+                    while b"\n" in buf:
+                        line_bytes, buf = buf.split(b"\n", 1)
+                        line_str = line_bytes.decode("utf-8", errors="replace").rstrip("\r")
+                        if raw_mode:
+                            out = line_str
+                        else:
+                            out = f"[{time.strftime('%H:%M:%S')}] {line_str}"
+                        print(out)
+                        sys.stdout.flush()
+                        if log_file:
+                            log_file.write(out + "\n")
+                            log_file.flush()
+                else:
+                    # Flush residual partial lines if stalled for > 0.4s
+                    if buf and (now - last_rx > 0.4):
+                        line_str = buf.decode("utf-8", errors="replace").rstrip("\r")
+                        if raw_mode:
+                            out = line_str
+                        else:
+                            out = f"[{time.strftime('%H:%M:%S')}] {line_str}"
+                        print(out)
+                        sys.stdout.flush()
+                        if log_file:
+                            log_file.write(out + "\n")
+                            log_file.flush()
+                        buf = b""
+                    time.sleep(0.01)
+
+        except (serial.SerialException, OSError) as e:
+            ts = time.strftime("%H:%M:%S")
+            disc_msg = f"[{ts}] [SDK] Serial disconnected ({e}). Reconnecting..."
+            print(f"\033[33m{disc_msg}\033[0m" if sys.stdout.isatty() else disc_msg)
+            sys.stdout.flush()
+            if log_file:
+                log_file.write(disc_msg + "\n")
+                log_file.flush()
+            if ser:
+                try:
+                    ser.close()
+                except Exception:
+                    pass
+            time.sleep(1.0)
+        except Exception as e:
+            ts = time.strftime("%H:%M:%S")
+            err_msg = f"[{ts}] [SDK] Unexpected error: {e}"
+            print(f"\033[31m{err_msg}\033[0m" if sys.stdout.isatty() else err_msg)
+            sys.stdout.flush()
+            if log_file:
+                log_file.write(err_msg + "\n")
+                log_file.flush()
+            if ser:
+                try:
+                    ser.close()
+                except Exception:
+                    pass
+            time.sleep(1.0)
+
+
+if __name__ == "__main__":
+    main()
