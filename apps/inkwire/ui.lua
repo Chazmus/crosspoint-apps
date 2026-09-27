@@ -64,23 +64,23 @@ function ui.drawButton(x, y, w, h, label, isFilled, fontId)
         gfx.fillRoundedRect(x, y, w, h, 6, gfx.COLOR_BLACK)
         gfx.drawText(fontId, lx, ly, label, false)
     else
-        gfx.drawRoundedRect(x, y, w, h, 6, 2, gfx.COLOR_BLACK)
+        gfx.drawRoundedRect(x, y, w, h, 6, 1, gfx.COLOR_BLACK)
         gfx.drawText(fontId, lx, ly, label, true)
     end
 end
 
 function ui.drawMasthead(editionTitle, weather, batteryPct)
     local w = gfx.getWidth()
-    -- Top rule
-    gfx.drawLine(16, 10, w - 16, 10, gfx.COLOR_BLACK)
+    -- Top hairline rule
+    gfx.drawLine(16, 8, w - 16, 8, gfx.COLOR_BLACK)
     
     -- Main newspaper title
     local title = "THE INKWIRE CHRONICLE"
     local fontTitle = gfx.FONT_NOTOSERIF_14
     local tw = ui.getTextWidth(fontTitle, title)
-    gfx.drawText(fontTitle, math.floor((w - tw) / 2), 16, title, true)
+    gfx.drawText(fontTitle, math.floor((w - tw) / 2), 14, title, true)
 
-    -- Sub-masthead line
+    -- Sub-masthead line (Date • Weather • Battery)
     local subline = editionTitle or "DAILY BRIEFING"
     if weather and weather ~= "" then
         subline = subline .. "  •  " .. weather
@@ -95,16 +95,16 @@ function ui.drawMasthead(editionTitle, weather, batteryPct)
         subline = ui.truncateText(fontSub, subline, w - 32)
         sw = ui.getTextWidth(fontSub, subline)
     end
-    gfx.drawText(fontSub, math.floor((w - sw) / 2), 40, subline, true)
+    -- Positioned with clean clearance above the bottom rule
+    gfx.drawText(fontSub, math.floor((w - sw) / 2), 42, subline, true)
 
-    -- Double bottom rule
-    gfx.drawLine(16, 56, w - 16, 56, gfx.COLOR_BLACK)
-    gfx.drawLine(16, 59, w - 16, 59, gfx.COLOR_BLACK)
+    -- Single clean bottom hairline rule with comfortable breathing room
+    gfx.drawLine(16, 68, w - 16, 68, gfx.COLOR_BLACK)
 end
 
 function ui.drawStoryCard(x, y, w, h, article, isHero)
-    -- Card background and border
-    gfx.drawRoundedRect(x, y, w, h, 8, isHero and 3 or 2, gfx.COLOR_BLACK)
+    -- Card background and clean 1px border
+    gfx.drawRoundedRect(x, y, w, h, 6, 1, gfx.COLOR_BLACK)
     
     local padX = 14
     local innerW = w - padX * 2
@@ -133,26 +133,30 @@ function ui.drawStoryCard(x, y, w, h, article, isHero)
     end
     curY = curY + 2
 
-    -- Teaser / First Bullet
-    local teaserText = nil
-    if article.bullets and #article.bullets > 0 then
-        teaserText = "• " .. article.bullets[1]
-    elseif article.body and article.body ~= "" then
-        teaserText = article.body
-    end
+    -- Teaser: Render takeaways / summary lines
+    local teaserFont = gfx.FONT_NOTOSERIF_12
+    local remainingH = (y + h) - curY - 26
+    local maxTeaserLines = math.max(1, math.floor(remainingH / (ui.getLineHeight(teaserFont) + 2)))
+    local linesRendered = 0
 
-    if teaserText then
-        local teaserFont = gfx.FONT_NOTOSERIF_12
-        local remainingH = (y + h) - curY - 24
-        local maxTeaserLines = math.max(1, math.floor(remainingH / ui.getLineHeight(teaserFont)))
-        local teaserLines = ui.wrapText(teaserFont, teaserText, innerW)
-        for i = 1, math.min(#teaserLines, maxTeaserLines) do
-            local lineText = teaserLines[i]
-            if i == maxTeaserLines and #teaserLines > maxTeaserLines then
-                lineText = ui.truncateText(teaserFont, lineText, innerW)
+    if article.bullets and #article.bullets > 0 then
+        for _, b in ipairs(article.bullets) do
+            if linesRendered >= maxTeaserLines then break end
+            local bLines = ui.wrapText(teaserFont, "• " .. b, innerW)
+            for _, bline in ipairs(bLines) do
+                if linesRendered >= maxTeaserLines then break end
+                gfx.drawText(teaserFont, x + padX, curY, bline, true)
+                curY = curY + ui.getLineHeight(teaserFont) + 2
+                linesRendered = linesRendered + 1
             end
-            gfx.drawText(teaserFont, x + padX, curY, lineText, true)
-            curY = curY + ui.getLineHeight(teaserFont)
+        end
+    elseif article.body and article.body ~= "" then
+        local bodyLines = ui.wrapText(teaserFont, article.body, innerW)
+        for _, bline in ipairs(bodyLines) do
+            if linesRendered >= maxTeaserLines then break end
+            gfx.drawText(teaserFont, x + padX, curY, bline, true)
+            curY = curY + ui.getLineHeight(teaserFont) + 2
+            linesRendered = linesRendered + 1
         end
     end
 

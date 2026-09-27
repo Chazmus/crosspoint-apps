@@ -59,8 +59,8 @@ function articleView.draw()
         local innerBoxW = contentW - boxPad * 2
         local bulletFont = gfx.FONT_NOTOSERIF_12
 
-        -- Pre-calculate box height
-        local boxH = 26 -- Header space
+        -- Pre-calculate box height with proper header clearance
+        local boxH = 34
         local wrappedBullets = {}
         for _, b in ipairs(art.bullets) do
             local lines = ui.wrapText(bulletFont, "• " .. b, innerBoxW)
@@ -69,11 +69,11 @@ function articleView.draw()
         end
 
         -- Draw container
-        gfx.drawRoundedRect(contentX, curY, contentW, boxH, 8, 2, gfx.COLOR_BLACK)
-        gfx.drawText(gfx.FONT_UI_10, contentX + boxPad, curY + 8, "KEY TAKEAWAYS", true)
-        gfx.drawLine(contentX + boxPad, curY + 22, contentX + contentW - boxPad, curY + 22, gfx.COLOR_BLACK)
+        gfx.drawRoundedRect(contentX, curY, contentW, boxH, 6, 1, gfx.COLOR_BLACK)
+        gfx.drawText(gfx.FONT_UI_10, contentX + boxPad, curY + 6, "KEY TAKEAWAYS", true)
+        gfx.drawLine(contentX + boxPad, curY + 26, contentX + contentW - boxPad, curY + 26, gfx.COLOR_BLACK)
 
-        local bY = curY + 28
+        local bY = curY + 32
         for _, lines in ipairs(wrappedBullets) do
             for _, bline in ipairs(lines) do
                 gfx.drawText(bulletFont, contentX + boxPad, bY, bline, true)
@@ -85,8 +85,15 @@ function articleView.draw()
         curY = curY + boxH + 12
     end
 
-    -- 4. Article Summary / Body
-    if art.body and art.body ~= "" then
+    -- 4. Article Summary / Body (omit if duplicate of takeaways)
+    local isDuplicateBody = false
+    if art.bullets and #art.bullets > 0 and art.body then
+        if art.body == art.bullets[1] or (art.body:find(art.bullets[1], 1, true) and #art.body <= #art.bullets[1] + 10) then
+            isDuplicateBody = true
+        end
+    end
+
+    if art.body and art.body ~= "" and not isDuplicateBody then
         local bodyFont = gfx.FONT_NOTOSERIF_12
         local bodyLines = ui.wrapText(bodyFont, art.body, contentW)
         
@@ -111,37 +118,38 @@ function articleView.draw()
     -- 5. QR Code "Mobile Handoff" Section
     if art.url and art.url ~= "" then
         local qrSize = 92
-        local qrBoxY = h - 64 - qrSize - 12
-        local qrX = contentX + 6
+        local qrBoxH = 116
+        local qrBoxY = h - 56 - qrBoxH - 10
+        local qrX = contentX + 8
         
         -- QR container outline
-        gfx.drawRoundedRect(contentX, qrBoxY, contentW, qrSize + 8, 8, 1, gfx.COLOR_BLACK)
+        gfx.drawRoundedRect(contentX, qrBoxY, contentW, qrBoxH, 6, 1, gfx.COLOR_BLACK)
         
-        -- Draw 1-bit QR Code
-        qr.draw(qrX, qrBoxY + 4, qrSize, qrSize, art.url)
+        -- Draw 1-bit QR Code centered vertically
+        qr.draw(qrX, qrBoxY + math.floor((qrBoxH - qrSize) / 2), qrSize, qrSize, art.url)
 
         -- Companion Text
         local textX = qrX + qrSize + 14
-        local textW = contentW - qrSize - 26
+        local textW = contentW - qrSize - 30
         local qrTitle = "Read Full Story On Phone"
-        gfx.drawText(gfx.FONT_NOTOSANS_12, textX, qrBoxY + 12, qrTitle, true)
+        gfx.drawText(gfx.FONT_NOTOSANS_12, textX, qrBoxY + 10, qrTitle, true)
         
         local qrDesc = "Scan code with camera to open original source in your browser."
         local descLines = ui.wrapText(gfx.FONT_UI_10, qrDesc, textW)
-        local dY = qrBoxY + 34
+        local dY = qrBoxY + 32
         for _, dl in ipairs(descLines) do
             gfx.drawText(gfx.FONT_UI_10, textX, dY, dl, true)
             dY = dY + ui.getLineHeight(gfx.FONT_UI_10) + 1
         end
 
         local hostStr = art.url:match("^https?://([^/]+)") or art.url
-        gfx.drawText(gfx.FONT_UI_10, textX, qrBoxY + qrSize - 12, "Source: " .. hostStr, true)
+        gfx.drawText(gfx.FONT_UI_10, textX, qrBoxY + qrBoxH - 22, "Source: " .. hostStr, true)
     end
 
     -- 6. Bottom Navigation Bar (Prev Story / Next Story)
-    local bottomY = h - 62
-    local btnH = 48
-    local btnW = 130
+    local bottomY = h - 56
+    local btnH = 42
+    local btnW = 120
     local stories = state.getActiveStories()
     local idx = state.findArticleIndex(art)
 
@@ -155,7 +163,7 @@ function articleView.draw()
 
     local storyIndicator = string.format("%d of %d", idx, #stories)
     local sw = ui.getTextWidth(gfx.FONT_NOTOSANS_12, storyIndicator)
-    gfx.drawText(gfx.FONT_NOTOSANS_12, math.floor((w - sw) / 2), bottomY + 16, storyIndicator, true)
+    gfx.drawText(gfx.FONT_NOTOSANS_12, math.floor((w - sw) / 2), bottomY + 13, storyIndicator, true)
 
     if idx < #stories then
         local nextX = w - 16 - btnW

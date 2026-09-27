@@ -25,64 +25,57 @@ function frontpage.draw()
 
     -- 2. Section Navigation Tabs
     frontpage.tabHits = {}
-    local tabY = 70
-    local tabH = 34
-    local curX = 16
+    local tabY = 76
+    local tabH = 30
+    local totalW = w - 32 -- 448px available
+    
+    local function formatTabLabel(title)
+        if not title or title == "All" then return "All" end
+        if title == "Tech & AI" or title == "Technology & AI" then return "Tech" end
+        if title == "Handheld Gaming & Emulation" or title == "Handhelds" then return "Gaming" end
+        if title == "Family & Community" or title == "Local & Family" then return "Local" end
+        return title
+    end
 
     -- Build list of tab labels: 0="All", then section titles
     local tabs = { { idx = 0, label = "All" } }
     if state.edition and state.edition.sections then
         for i, sec in ipairs(state.edition.sections) do
-            table.insert(tabs, { idx = i, label = sec.title })
+            table.insert(tabs, { idx = i, label = formatTabLabel(sec.title) })
         end
     end
 
     local tabFont = gfx.FONT_NOTOSANS_12
-    for _, tab in ipairs(tabs) do
-        local tw = ui.getTextWidth(tabFont, tab.label)
-        local btnW = math.max(54, tw + 18)
-        
-        -- Check if tab fits on screen width, if not wrap to next row if needed or clip
-        if curX + btnW > w - 50 then
-            -- Fallback compact sizing if many sections
-            btnW = tw + 12
-        end
+    local numTabs = #tabs
+    local tabGap = 6
+    local tabW = math.floor((totalW - (numTabs - 1) * tabGap) / numTabs)
 
+    for i, tab in ipairs(tabs) do
+        local tx = 16 + (i - 1) * (tabW + tabGap)
         local isSelected = (state.currentSectionIndex == tab.idx)
         if isSelected then
-            gfx.fillRoundedRect(curX, tabY, btnW, tabH, 6, gfx.COLOR_BLACK)
+            gfx.fillRoundedRect(tx, tabY, tabW, tabH, 5, gfx.COLOR_BLACK)
             local lw = ui.getTextWidth(tabFont, tab.label)
             local lh = ui.getLineHeight(tabFont)
-            gfx.drawText(tabFont, curX + math.floor((btnW - lw) / 2), tabY + math.floor((tabH - lh) / 2), tab.label, false)
+            gfx.drawText(tabFont, tx + math.floor((tabW - lw) / 2), tabY + math.floor((tabH - lh) / 2), tab.label, false)
         else
-            gfx.drawRoundedRect(curX, tabY, btnW, tabH, 6, 1, gfx.COLOR_BLACK)
+            gfx.drawRoundedRect(tx, tabY, tabW, tabH, 5, 1, gfx.COLOR_BLACK)
             local lw = ui.getTextWidth(tabFont, tab.label)
             local lh = ui.getLineHeight(tabFont)
-            gfx.drawText(tabFont, curX + math.floor((btnW - lw) / 2), tabY + math.floor((tabH - lh) / 2), tab.label, true)
+            gfx.drawText(tabFont, tx + math.floor((tabW - lw) / 2), tabY + math.floor((tabH - lh) / 2), tab.label, true)
         end
 
         table.insert(frontpage.tabHits, {
-            x = curX, y = tabY, w = btnW, h = tabH, idx = tab.idx
+            x = tx, y = tabY, w = tabW, h = tabH, idx = tab.idx
         })
-        curX = curX + btnW + 6
     end
-
-    -- Settings gear tab at far right
-    local gearW = 42
-    local gearX = w - 16 - gearW
-    gfx.drawRoundedRect(gearX, tabY, gearW, tabH, 6, 1, gfx.COLOR_BLACK)
-    local gearLabel = "Cfg"
-    local gw = ui.getTextWidth(tabFont, gearLabel)
-    local gh = ui.getLineHeight(tabFont)
-    gfx.drawText(tabFont, gearX + math.floor((gearW - gw) / 2), tabY + math.floor((tabH - gh) / 2), gearLabel, true)
-    frontpage.btnSettingsHit = { x = gearX, y = tabY, w = gearW, h = tabH }
 
     -- 3. Story Cards List
     frontpage.cardHits = {}
     local stories = state.getPageStories()
-    local cardStartY = 114
-    local cardH = 192
-    local cardGap = 10
+    local cardStartY = 116
+    local cardH = 188
+    local cardGap = 12
     local cardW = w - 32
     local cardX = 16
 
@@ -102,18 +95,19 @@ function frontpage.draw()
         end
     end
 
-    -- 4. Bottom Action Bar (Y: 730 to 790)
-    local bottomY = h - 62
-    local btnH = 48
+    -- 4. Bottom Action Bar (Y: 728 to 772)
+    local bottomY = 728
+    local btnH = 44
     frontpage.btnPrevHit = nil
     frontpage.btnNextHit = nil
     frontpage.btnSyncHit = nil
+    frontpage.btnSettingsHit = nil
 
     local totalPages = state.getTotalPages()
 
     -- Pagination controls (Left side)
     if totalPages > 1 then
-        local pBtnW = 68
+        local pBtnW = 66
         if state.currentPage > 1 then
             ui.drawButton(16, bottomY, pBtnW, btnH, "< Prev", false, gfx.FONT_NOTOSANS_12)
             frontpage.btnPrevHit = { x = 16, y = bottomY, w = pBtnW, h = btnH }
@@ -122,7 +116,7 @@ function frontpage.draw()
         local pageStr = string.format("%d / %d", state.currentPage, totalPages)
         local pw = ui.getTextWidth(gfx.FONT_NOTOSANS_12, pageStr)
         local pageStrX = 16 + pBtnW + 8
-        gfx.drawText(gfx.FONT_NOTOSANS_12, pageStrX, bottomY + 16, pageStr, true)
+        gfx.drawText(gfx.FONT_NOTOSANS_12, pageStrX, bottomY + 13, pageStr, true)
 
         if state.currentPage < totalPages then
             local nextX = pageStrX + pw + 8
@@ -132,13 +126,18 @@ function frontpage.draw()
     else
         -- Single page count
         local storyCountStr = string.format("%d stories", #state.getActiveStories())
-        gfx.drawText(gfx.FONT_UI_10, 20, bottomY + 18, storyCountStr, true)
+        gfx.drawText(gfx.FONT_UI_10, 20, bottomY + 15, storyCountStr, true)
     end
 
-    -- Sync Button (Right side, high contrast filled button)
-    local syncW = 150
-    local syncX = w - 16 - syncW
-    ui.drawButton(syncX, bottomY, syncW, btnH, "Sync Feed", true, gfx.FONT_NOTOSANS_12)
+    -- Right Action Buttons: [Sync] and [Settings]
+    local cfgW = 76
+    local cfgX = w - 16 - cfgW
+    ui.drawButton(cfgX, bottomY, cfgW, btnH, "Settings", false, gfx.FONT_NOTOSANS_12)
+    frontpage.btnSettingsHit = { x = cfgX, y = bottomY, w = cfgW, h = btnH }
+
+    local syncW = 86
+    local syncX = cfgX - 8 - syncW
+    ui.drawButton(syncX, bottomY, syncW, btnH, "Sync", false, gfx.FONT_NOTOSANS_12)
     frontpage.btnSyncHit = { x = syncX, y = bottomY, w = syncW, h = btnH }
 end
 
