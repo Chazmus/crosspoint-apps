@@ -29,24 +29,30 @@ async function buildLiveEdition(env: Env): Promise<EditionPayload> {
   console.log("Starting InkWire daily edition build...");
 
   // 1. Fetch live sources concurrently
-  const [hnItems, arsItems, chessReddit, sbcGamingReddit, familyFeed, weatherStr] = await Promise.all([
+  const [hnItems, arsItems, chessNews, lichessNews, chessReddit, retroNews, timeExtNews, sbcGamingReddit, familyFeed, weatherStr] = await Promise.all([
     fetchHackerNews(3),
     fetchRss("https://feeds.arstechnica.com/arstechnica/index", "Ars Technica", 3),
-    fetchReddit("chess", 4),
-    fetchReddit("sbcgaming", 4),
+    fetchRss("https://www.chess.com/rss/news", "Chess.com", 3),
+    fetchRss("https://lichess.org/@/Lichess/blog.atom", "Lichess", 2),
+    fetchReddit("chess", 3),
+    fetchRss("https://retrohandhelds.gg/feed/", "Retro Handhelds", 3),
+    fetchRss("https://www.timeextension.com/feeds/latest", "Time Extension", 2),
+    fetchReddit("sbcgaming", 3),
     fetchRss("https://feeds.bbci.co.uk/news/education/rss.xml", "Family & Education", 3),
     fetchWeather(lat, lon, city)
   ]);
 
-  // Merge tech feeds
+  // Merge feeds
   const techRaw = [...hnItems, ...arsItems].slice(0, 4);
+  const chessRaw = [...chessReddit, ...chessNews, ...lichessNews].slice(0, 4);
+  const gamingRaw = [...sbcGamingReddit, ...retroNews, ...timeExtNews].slice(0, 4);
 
   // 2. Synthesize & summarize each section with AI
   console.log("Summarizing sections with AI...");
   const [techArticles, chessArticles, gamingArticles, familyArticles] = await Promise.all([
     summarizeArticles("Technology & AI", techRaw, env),
-    summarizeArticles("Chess & Tactics", chessReddit, env),
-    summarizeArticles("Handheld Gaming & Emulation", sbcGamingReddit, env),
+    summarizeArticles("Chess & Tactics", chessRaw, env),
+    summarizeArticles("Handheld Gaming & Emulation", gamingRaw, env),
     summarizeArticles("Family & Community", familyFeed, env)
   ]);
 

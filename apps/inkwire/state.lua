@@ -4,7 +4,7 @@ local json = require("json")
 local state = {
     edition = nil,
     config = {
-        feedUrl = "https://raw.githubusercontent.com/chazmus/crosspoint-apps/main/apps/inkwire/sample_edition.json"
+        feedUrl = "https://inkwire-worker.charles-s-bailey.workers.dev/today.json"
     },
     currentSectionIndex = 0, -- 0 = "All", 1..N = specific section
     currentPage = 1,

@@ -1,6 +1,7 @@
 name = "inkwire-worker"
 main = "src/index.ts"
 compatibility_date = "2024-09-01"
+account_id = "a4539a8af2c5faa89b6c222f533a0de7"
 
 [triggers]
 crons = ["0 6 * * *"]
@@ -8,12 +9,9 @@ crons = ["0 6 * * *"]
 [ai]
 binding = "AI"
 
-# Optional KV namespace for persistence across worker cold starts.
-# You can create one via: npx wrangler kv:namespace create EDITION_KV
-# and paste the returned ID here:
-# [[kv_namespaces]]
-# binding = "EDITION_KV"
-# id = "..."
+[[kv_namespaces]]
+binding = "EDITION_KV"
+id = "fed22fa4f0ed4cc48a21e3cceb1aa74f"
 
 [vars]
 WEATHER_CITY = "London"

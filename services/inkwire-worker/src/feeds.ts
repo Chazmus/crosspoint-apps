@@ -6,20 +6,36 @@ const xmlParser = new XMLParser({
   attributeNamePrefix: "@_"
 });
 
-function stripHtml(html: string): string {
-  if (!html) return "";
-  return html
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
+function decodeEntities(str: string): string {
+  return str
+    .replace(/&#(\d+);/g, (_, dec) => {
+      const code = parseInt(dec, 10);
+      if (code === 8217 || code === 8216) return "'";
+      if (code === 8220 || code === 8221) return '"';
+      if (code === 8211 || code === 8212) return " - ";
+      if (code === 8230) return "...";
+      return String.fromCharCode(code);
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&rsquo;|&lsquo;/g, "'")
+    .replace(/&rdquo;|&ldquo;/g, '"')
+    .replace(/&mdash;|&ndash;/g, " - ")
+    .replace(/&hellip;/g, "...")
     .replace(/&amp;/g, "&")
     .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
+    .replace(/&#39;|&apos;/g, "'")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
-    .replace(/\s+/g, " ")
-    .trim();
+    .replace(/&nbsp;/g, " ");
+}
+
+function stripHtml(html: string): string {
+  if (!html) return "";
+  const noTags = html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<[^>]+>/g, " ");
+  return decodeEntities(noTags).replace(/\s+/g, " ").trim();
 }
 
 function timeAgo(dateOrTimestamp: number | string): string {
