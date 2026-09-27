@@ -191,6 +191,8 @@ The `ui` module gives Lua apps direct access to the firmware's native FreeInkUI 
 - `ui.drawTable(props)`: Renders multi-column tabular data grid (`{ x, y, w, h, rows, cols, cells = { ... }, headerRow = true, rowHeight = 28 }`).
 - `ui.drawMetricCard(props)`: Renders dashboard stat card (`{ x, y, w, h, label, value, unit, caption, centered = true, onClick = function() end }`).
 - `ui.drawContextMenu(props)`: Renders popover context action menu with background dimming (`{ x, y, w, title, items = { { label, onClick } } }`).
+- `ui.drawTextField(props)`: Renders styled text input container with label, value/placeholder, and tap-to-edit support (`{ x, y, w, h, label, value, placeholder, inputType = "text"|"url"|"password", maxLength, onConfirm = function(newText) end, onClick = function() end }`).
+- `ui.promptText(props)`: Asynchronously launches the native text entry modal prompt (`{ title, initialText, placeholder, inputType = "text"|"url"|"password", maxLength, onConfirm = function(text) end, onCancel = function() end }`). Available also as `crosspoint.promptText`.
 
 ### `input` Module
 - `input.wasPressed(btn)`

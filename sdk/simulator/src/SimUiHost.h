@@ -55,6 +55,29 @@ class SimUiHost {
   freeink::ui::ActionId registerCallbackWithInvoker(lua_State* L, int funcIndex, UiInvoker invoker,
                                                     int16_t value = 0, const std::string& name = "");
 
+  struct SimTextPrompt {
+    bool active = false;
+    std::string title = "Enter Text";
+    std::string text;
+    std::string placeholder;
+    std::string inputType = "text";
+    size_t maxLength = 256;
+    int confirmLuaRef = -1;
+    int cancelLuaRef = -1;
+  };
+
+  void showPrompt(const std::string& title, const std::string& initialText,
+                  const std::string& placeholder, const std::string& inputType,
+                  size_t maxLength, int confirmRef, int cancelRef);
+  bool isPromptActive() const { return prompt_.active; }
+  const SimTextPrompt& getPrompt() const { return prompt_; }
+  void promptAppendText(const char* utf8);
+  void promptBackspace();
+  void confirmPrompt(lua_State* L);
+  void cancelPrompt(lua_State* L);
+  bool dispatchPromptTouch(int x, int y, lua_State* L);
+  void renderPromptOverlay();
+
   freeink::ui::Frame<INTERACTION_CAPACITY>* currentFrame() { return frame_.get(); }
   SimDrawTarget& drawTarget() { return drawTarget_; }
 
@@ -76,6 +99,7 @@ class SimUiHost {
   freeink::ui::ActionId nextActionId_ = 1;
   std::map<freeink::ui::ActionId, UiCallback> callbacks_;
   std::vector<int> luaRefsToClean_;
+  SimTextPrompt prompt_;
 
   void refreshTokens();
   void clearCallbacks(lua_State* L);

@@ -11,6 +11,9 @@ local state = {
     radioVal = 1,
     showDialog = false,
     showContextMenu = false,
+    feedUrl = "https://news.ycombinator.com/rss",
+    userName = "CrossPoint Hacker",
+    wifiPassword = "secret-passphrase",
     themes = { "Lyra", "RoundedRaff", "Classic" }
 }
 
@@ -34,7 +37,7 @@ function onDraw()
     -- 2. Native Segmented Tab Bar
     ui.drawTabBar({
         y = body.y,
-        tabs = { "Basic", "Sliders", "Settings", "Data" },
+        tabs = { "Basic", "Sliders", "Settings", "Data", "Text" },
         selectedIndex = state.currentTab,
         onSelect = function(idx)
             state.currentTab = idx
@@ -310,6 +313,105 @@ function onDraw()
                 "2", "Nakamura", "2802",
                 "3", "Caruana", "2805"
             }
+        })
+    elseif state.currentTab == 5 then
+        -- Tab 5: Text Fields & Native Keyboard Prompts (Phase 3)
+        local cur = curY
+
+        -- Description Card
+        local infoCard = ui.drawCard({
+            x = 16,
+            y = cur,
+            w = contentW,
+            h = 80,
+            variant = "outlined",
+            padding = 12
+        })
+        gfx.drawText(gfx.FONT_UI_10, infoCard.innerX, infoCard.innerY, "Phase 3: Text Input & Modal Prompts", true)
+        gfx.drawText(gfx.FONT_SMALL, infoCard.innerX, infoCard.innerY + 20, "Tap any text field to open the native text prompt dialog.", true)
+        gfx.drawText(gfx.FONT_SMALL, infoCard.innerX, infoCard.innerY + 38, "Type on your keyboard or CrossPoint touchscreen.", true)
+
+        cur = cur + 92
+
+        -- 1. Standard text field with label and placeholder
+        ui.drawTextField({
+            x = 16,
+            y = cur,
+            w = contentW,
+            h = 56,
+            label = "RSS / Feed Endpoint URL",
+            value = state.feedUrl,
+            placeholder = "https://example.com/feed.xml",
+            inputType = "url",
+            onConfirm = function(text)
+                state.feedUrl = text
+                ui.drawToast({ message = "Feed URL updated!" })
+                crosspoint.requestUpdate()
+            end
+        })
+
+        cur = cur + 66
+
+        -- 2. User Name field
+        ui.drawTextField({
+            x = 16,
+            y = cur,
+            w = contentW,
+            h = 56,
+            label = "User Display Name",
+            value = state.userName,
+            placeholder = "Enter your handle",
+            inputType = "text",
+            maxLength = 32,
+            onConfirm = function(text)
+                state.userName = text
+                ui.drawToast({ message = "Name saved!" })
+                crosspoint.requestUpdate()
+            end
+        })
+
+        cur = cur + 66
+
+        -- 3. Password field
+        ui.drawTextField({
+            x = 16,
+            y = cur,
+            w = contentW,
+            h = 56,
+            label = "Wi-Fi Passphrase (Masked)",
+            value = state.wifiPassword,
+            placeholder = "Enter network password",
+            inputType = "password",
+            onConfirm = function(text)
+                state.wifiPassword = text
+                ui.drawToast({ message = "Password updated!" })
+                crosspoint.requestUpdate()
+            end
+        })
+
+        cur = cur + 70
+
+        -- 4. Direct promptText invocation button
+        ui.drawButton({
+            x = 16,
+            y = cur,
+            w = contentW,
+            h = 44,
+            label = "Direct Prompt: Quick Note",
+            variant = "primary",
+            onClick = function()
+                ui.promptText({
+                    title = "Send Quick Note",
+                    initialText = "Hello from FreeInkUI!",
+                    placeholder = "Type a message...",
+                    inputType = "text",
+                    onConfirm = function(text)
+                        ui.drawToast({ message = "Sent: " .. text })
+                        crosspoint.requestUpdate()
+                    end
+                })
+                crosspoint.requestUpdate()
+            end
         })
     end
 

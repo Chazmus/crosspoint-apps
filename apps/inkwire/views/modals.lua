@@ -52,15 +52,37 @@ function modals.drawSettingsModal()
     local contentW = mw - 40
     local contentX = mx + 20
 
-    -- Feed URL Section
-    gfx.drawText(gfx.FONT_NOTOSANS_12, contentX, cy, "Feed Endpoint URL:", true)
-    cy = cy + 20
+    -- Feed URL Section (Phase 3: Interactive Text Field with tap-to-edit)
+    local tf = _G.ui and _G.ui.drawTextField and _G.ui.drawTextField({
+        x = contentX,
+        y = cy,
+        w = contentW,
+        h = 54,
+        label = "Feed Endpoint URL (Tap to Edit):",
+        value = state.config.feedUrl or "",
+        placeholder = "https://example.com/edition.json",
+        inputType = "url",
+        onConfirm = function(newUrl)
+            if newUrl and newUrl ~= "" then
+                state.config.feedUrl = newUrl
+                state.saveConfig()
+                if crosspoint then crosspoint.requestUpdate() end
+            end
+        end
+    })
 
-    local urlBoxH = 46
-    gfx.drawRoundedRect(contentX, cy, contentW, urlBoxH, 6, 1, gfx.COLOR_BLACK)
-    local displayUrl = ui.truncateText(gfx.FONT_UI_10, state.config.feedUrl or "(None configured)", contentW - 16)
-    gfx.drawText(gfx.FONT_UI_10, contentX + 8, cy + 16, displayUrl, true)
-    cy = cy + urlBoxH + 16
+    if tf then
+        cy = cy + 54 + 14
+    else
+        gfx.drawText(gfx.FONT_NOTOSANS_12, contentX, cy, "Feed Endpoint URL:", true)
+        cy = cy + 20
+
+        local urlBoxH = 46
+        gfx.drawRoundedRect(contentX, cy, contentW, urlBoxH, 6, 1, gfx.COLOR_BLACK)
+        local displayUrl = ui.truncateText(gfx.FONT_UI_10, state.config.feedUrl or "(None configured)", contentW - 16)
+        gfx.drawText(gfx.FONT_UI_10, contentX + 8, cy + 16, displayUrl, true)
+        cy = cy + urlBoxH + 16
+    end
 
     -- Homelab / Cloudflare instructions
     local noteTitle = "How to customise your feed:"

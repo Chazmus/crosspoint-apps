@@ -2449,6 +2449,265 @@ static int l_ui_drawContextMenu(lua_State* L) {
   return 1;
 }
 
+static int l_ui_promptText(lua_State* L) {
+  auto* ctx = getContext(L);
+  if (!ctx || !ctx->uiHost) return 0;
+
+  std::string title = "Enter Text";
+  std::string initialText;
+  std::string placeholder;
+  std::string inputType = "text";
+  size_t maxLength = 256;
+  int confirmRef = -1;
+  int cancelRef = -1;
+
+  if (lua_istable(L, 1)) {
+    lua_getfield(L, 1, "title");
+    if (lua_isstring(L, -1)) title = lua_tostring(L, -1);
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "initialText");
+    if (lua_isstring(L, -1)) {
+      initialText = lua_tostring(L, -1);
+    } else {
+      lua_pop(L, 1);
+      lua_getfield(L, 1, "text");
+      if (lua_isstring(L, -1)) {
+        initialText = lua_tostring(L, -1);
+      } else {
+        lua_pop(L, 1);
+        lua_getfield(L, 1, "value");
+        if (lua_isstring(L, -1)) {
+          initialText = lua_tostring(L, -1);
+        }
+      }
+    }
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "placeholder");
+    if (lua_isstring(L, -1)) placeholder = lua_tostring(L, -1);
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "inputType");
+    if (lua_isstring(L, -1)) inputType = lua_tostring(L, -1);
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "maxLength");
+    if (lua_isnumber(L, -1)) maxLength = static_cast<size_t>(lua_tointeger(L, -1));
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "onConfirm");
+    if (lua_isfunction(L, -1)) {
+      confirmRef = luaL_ref(L, LUA_REGISTRYINDEX);
+    } else {
+      lua_pop(L, 1);
+    }
+
+    lua_getfield(L, 1, "onCancel");
+    if (lua_isfunction(L, -1)) {
+      cancelRef = luaL_ref(L, LUA_REGISTRYINDEX);
+    } else {
+      lua_pop(L, 1);
+    }
+  } else if (lua_isstring(L, 1)) {
+    title = lua_tostring(L, 1);
+    if (lua_isstring(L, 2)) initialText = lua_tostring(L, 2);
+    if (lua_isfunction(L, 3)) {
+      lua_pushvalue(L, 3);
+      confirmRef = luaL_ref(L, LUA_REGISTRYINDEX);
+    }
+    if (lua_isfunction(L, 4)) {
+      lua_pushvalue(L, 4);
+      cancelRef = luaL_ref(L, LUA_REGISTRYINDEX);
+    }
+  }
+
+  ctx->uiHost->showPrompt(title, initialText, placeholder, inputType, maxLength, confirmRef, cancelRef);
+  return 0;
+}
+
+static int l_ui_drawTextField(lua_State* L) {
+  auto* ctx = getContext(L);
+  if (!ctx || !ctx->uiHost || !ctx->uiHost->currentFrame()) {
+    lua_newtable(L);
+    return 1;
+  }
+  auto* frame = ctx->uiHost->currentFrame();
+  const auto& tokens = ctx->uiHost->getTokens();
+
+  int x = 0, y = 0, w = 300;
+  std::string label;
+  std::string value;
+  std::string placeholder;
+  std::string inputType = "text";
+  std::string variant = "outlined";
+  size_t maxLength = 256;
+  int radius = tokens.controlRadius > 0 ? tokens.controlRadius : 6;
+  bool enabled = true;
+
+  if (lua_istable(L, 1)) {
+    lua_getfield(L, 1, "x");
+    if (lua_isnumber(L, -1)) x = static_cast<int>(lua_tointeger(L, -1));
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "y");
+    if (lua_isnumber(L, -1)) y = static_cast<int>(lua_tointeger(L, -1));
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "w");
+    if (lua_isnumber(L, -1)) w = static_cast<int>(lua_tointeger(L, -1));
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "label");
+    if (lua_isstring(L, -1)) label = lua_tostring(L, -1);
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "value");
+    if (lua_isstring(L, -1)) {
+      value = lua_tostring(L, -1);
+    } else {
+      lua_pop(L, 1);
+      lua_getfield(L, 1, "text");
+      if (lua_isstring(L, -1)) {
+        value = lua_tostring(L, -1);
+      }
+    }
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "placeholder");
+    if (lua_isstring(L, -1)) placeholder = lua_tostring(L, -1);
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "inputType");
+    if (lua_isstring(L, -1)) inputType = lua_tostring(L, -1);
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "maxLength");
+    if (lua_isnumber(L, -1)) maxLength = static_cast<size_t>(lua_tointeger(L, -1));
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "variant");
+    if (lua_isstring(L, -1)) variant = lua_tostring(L, -1);
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "radius");
+    if (lua_isnumber(L, -1)) radius = static_cast<int>(lua_tointeger(L, -1));
+    lua_pop(L, 1);
+
+    lua_getfield(L, 1, "enabled");
+    if (lua_isboolean(L, -1)) enabled = lua_toboolean(L, -1);
+    lua_pop(L, 1);
+  }
+
+  int h = label.empty() ? 44 : 54;
+  if (lua_istable(L, 1)) {
+    lua_getfield(L, 1, "h");
+    if (lua_isnumber(L, -1)) h = static_cast<int>(lua_tointeger(L, -1));
+    lua_pop(L, 1);
+  }
+
+  freeink::ui::Rect fieldRect{static_cast<int16_t>(x), static_cast<int16_t>(y), static_cast<int16_t>(w), static_cast<int16_t>(h)};
+
+  if (enabled) {
+    lua_getfield(L, 1, "onClick");
+    if (lua_isfunction(L, -1)) {
+      freeink::ui::ActionId act = ctx->uiHost->registerCallback(L, lua_gettop(L), 0, "textField");
+      frame->hit(fieldRect, act);
+      lua_pop(L, 1);
+    } else {
+      lua_pop(L, 1);
+      lua_getfield(L, 1, "onConfirm");
+      if (lua_isfunction(L, -1)) {
+        std::string pTitle = label.empty() ? "Enter Text" : label;
+        std::string pVal = value;
+        std::string pPh = placeholder;
+        std::string pInType = inputType;
+        size_t pMaxLen = maxLength;
+        auto* uiHost = ctx->uiHost;
+
+        auto invoker = [uiHost, pTitle, pVal, pPh, pInType, pMaxLen](lua_State* state, int, int, int16_t) -> int {
+          lua_pushvalue(state, -1);
+          int onConfirmRef = luaL_ref(state, LUA_REGISTRYINDEX);
+          uiHost->showPrompt(pTitle, pVal, pPh, pInType, pMaxLen, onConfirmRef, -1);
+          return -1;
+        };
+
+        freeink::ui::ActionId act = ctx->uiHost->registerCallbackWithInvoker(L, lua_gettop(L), invoker, 0, "textFieldAutoPrompt");
+        frame->hit(fieldRect, act);
+        lua_pop(L, 1);
+      } else {
+        lua_pop(L, 1);
+      }
+    }
+  }
+
+  // Draw background and border
+  if (variant == "filled") {
+    frame->target().fill(fieldRect, freeink::ui::Paint::dither(freeink::ui::Color::LightGray), static_cast<uint8_t>(radius));
+  } else {
+    frame->target().fill(fieldRect, freeink::ui::Paint::solid(freeink::ui::Color::White), static_cast<uint8_t>(radius));
+  }
+  frame->target().stroke(fieldRect, freeink::ui::Paint::solid(freeink::ui::Color::Black), 1, static_cast<uint8_t>(radius));
+
+  const int paddingX = 12;
+  if (!label.empty()) {
+    freeink::ui::Rect labelRect{static_cast<int16_t>(x + paddingX), static_cast<int16_t>(y + 4),
+                                static_cast<int16_t>(w - paddingX * 2), 16};
+    freeink::ui::TextStyle lStyle;
+    lStyle.font = SimDrawTarget::FONT_SMALL;
+    frame->target().text(labelRect, label.c_str(), lStyle);
+
+    const int vLh = frame->target().lineHeight(SimDrawTarget::FONT_BODY);
+    const int textY = y + 22 + std::max(0, (h - 22 - vLh) / 2);
+    freeink::ui::Rect textRect{static_cast<int16_t>(x + paddingX), static_cast<int16_t>(textY),
+                               static_cast<int16_t>(w - paddingX * 2), static_cast<int16_t>(vLh)};
+    freeink::ui::TextStyle vStyle;
+    vStyle.font = SimDrawTarget::FONT_BODY;
+
+    if (!value.empty()) {
+      if (inputType == "password") {
+        std::string masked(value.size(), '*');
+        frame->target().text(textRect, masked.c_str(), vStyle);
+      } else {
+        frame->target().text(textRect, value.c_str(), vStyle);
+      }
+    } else if (!placeholder.empty()) {
+      std::string phDisplay = "(" + placeholder + ")";
+      frame->target().text(textRect, phDisplay.c_str(), vStyle);
+    }
+  } else {
+    const int vLh = frame->target().lineHeight(SimDrawTarget::FONT_BODY);
+    const int textY = y + std::max(0, (h - vLh) / 2);
+    freeink::ui::Rect textRect{static_cast<int16_t>(x + paddingX), static_cast<int16_t>(textY),
+                               static_cast<int16_t>(w - paddingX * 2), static_cast<int16_t>(vLh)};
+    freeink::ui::TextStyle vStyle;
+    vStyle.font = SimDrawTarget::FONT_BODY;
+
+    if (!value.empty()) {
+      if (inputType == "password") {
+        std::string masked(value.size(), '*');
+        frame->target().text(textRect, masked.c_str(), vStyle);
+      } else {
+        frame->target().text(textRect, value.c_str(), vStyle);
+      }
+    } else if (!placeholder.empty()) {
+      std::string phDisplay = "(" + placeholder + ")";
+      frame->target().text(textRect, phDisplay.c_str(), vStyle);
+    }
+  }
+
+  lua_newtable(L);
+  lua_pushinteger(L, x);
+  lua_setfield(L, -2, "x");
+  lua_pushinteger(L, y);
+  lua_setfield(L, -2, "y");
+  lua_pushinteger(L, w);
+  lua_setfield(L, -2, "w");
+  lua_pushinteger(L, h);
+  lua_setfield(L, -2, "h");
+  return 1;
+}
+
 void registerModule(lua_State* L, const char* name, const luaL_Reg* funcs, SimContext* ctx) {
   lua_newtable(L);
   for (; funcs->name != nullptr; ++funcs) {
@@ -2601,11 +2860,12 @@ void registerSimBindings(lua_State* L, SimContext* ctx) {
       {"setSleepApp", l_crosspoint_setSleepApp},
       {"getSleepApp", l_crosspoint_getSleepApp},
       {"clearSleepApp", l_crosspoint_clearSleepApp},
+      {"promptText", l_ui_promptText},
       {nullptr, nullptr},
   };
   registerModule(L, "crosspoint", crosspointFuncs, ctx);
 
-  // Set ui module (FreeInkUI Phase 1 & 2)
+  // Set ui module (FreeInkUI Phase 1, 2 & 3)
   static const luaL_Reg uiFuncs[] = {
       {"getTheme", l_ui_getTheme},
       {"setTheme", l_ui_setTheme},
@@ -2628,6 +2888,8 @@ void registerSimBindings(lua_State* L, SimContext* ctx) {
       {"drawTable", l_ui_drawTable},
       {"drawMetricCard", l_ui_drawMetricCard},
       {"drawContextMenu", l_ui_drawContextMenu},
+      {"drawTextField", l_ui_drawTextField},
+      {"promptText", l_ui_promptText},
       {nullptr, nullptr},
   };
   registerModule(L, "ui", uiFuncs, ctx);

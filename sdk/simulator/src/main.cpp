@@ -394,7 +394,18 @@ int main(int argc, char* argv[]) {
         break;
       }
 
+      if (e.type == SDL_TEXTINPUT) {
+        if (simCtx.uiHost && simCtx.uiHost->isPromptActive()) {
+          simCtx.uiHost->promptAppendText(e.text.text);
+          redraw();
+          continue;
+        }
+      }
+
       if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
+        if (simCtx.uiHost && simCtx.uiHost->isPromptActive()) {
+          continue;
+        }
         simCtx.isTouchDown = true;
         simCtx.touchX = e.button.x;
         simCtx.touchY = e.button.y;
@@ -425,6 +436,12 @@ int main(int argc, char* argv[]) {
       }
 
       if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) {
+        if (simCtx.uiHost && simCtx.uiHost->isPromptActive()) {
+          if (simCtx.uiHost->dispatchPromptTouch(e.button.x, e.button.y, L)) {
+            redraw();
+            continue;
+          }
+        }
         simCtx.isTouchDown = false;
         simCtx.touchX = e.button.x;
         simCtx.touchY = e.button.y;
@@ -477,6 +494,25 @@ int main(int argc, char* argv[]) {
       }
 
       if (e.type == SDL_KEYDOWN) {
+        if (simCtx.uiHost && simCtx.uiHost->isPromptActive()) {
+          const SDL_Keycode key = e.key.keysym.sym;
+          if (key == SDLK_BACKSPACE) {
+            simCtx.uiHost->promptBackspace();
+            redraw();
+            continue;
+          } else if (key == SDLK_RETURN || key == SDLK_KP_ENTER) {
+            simCtx.uiHost->confirmPrompt(L);
+            redraw();
+            continue;
+          } else if (key == SDLK_ESCAPE) {
+            simCtx.uiHost->cancelPrompt(L);
+            redraw();
+            continue;
+          }
+          // Do not process simulator hotkeys while typing into the prompt
+          continue;
+        }
+
         const SDL_Keycode key = e.key.keysym.sym;
 
         if (key == SDLK_o) {
