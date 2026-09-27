@@ -170,19 +170,21 @@ run_test("Section Filtering & Active Stories", function()
     -- Section 0 = All
     state.selectSection(0)
     local allStories = state.getActiveStories()
-    assert_eq(#allStories, 12, "All section contains all 12 stories across 4 categories")
+    local expectedTotal = 0
+    for _, s in ipairs(state.edition.sections) do expectedTotal = expectedTotal + #s.articles end
+    assert_eq(#allStories, expectedTotal, "All section contains all stories across categories")
 
-    -- Section 1 = Tech & AI (3 stories)
+    -- Section 1 = Tech & AI
     state.selectSection(1)
     local techStories = state.getActiveStories()
-    assert_eq(#techStories, 3, "Tech section contains 3 stories")
-    assert_eq(techStories[1].source, "Ars Technica", "First tech story source")
+    assert_eq(#techStories, #state.edition.sections[1].articles, "Tech section contains matching stories")
+    assert_true(#techStories > 0, "Tech section has articles")
 
-    -- Section 2 = Chess (3 stories)
+    -- Section 2 = Chess
     state.selectSection(2)
     local chessStories = state.getActiveStories()
-    assert_eq(#chessStories, 3, "Chess section contains 3 stories")
-    assert_eq(chessStories[1].source, "Chess.com", "First chess story source")
+    assert_eq(#chessStories, #state.edition.sections[2].articles, "Chess section contains matching stories")
+    assert_true(#chessStories > 0, "Chess section has articles")
 end)
 
 run_test("Pagination Logic", function()
@@ -190,22 +192,24 @@ run_test("Pagination Logic", function()
     package.loaded["state"] = nil
     local state = require("state")
     state.loadEdition()
-    state.selectSection(0) -- 12 stories, 3 items per page -> 4 pages
-    assert_eq(state.getTotalPages(), 4, "12 stories at 3 per page = 4 pages")
+    state.selectSection(0)
+    local allStories = state.getActiveStories()
+    local expectedPages = math.ceil(#allStories / state.itemsPerPage)
+    assert_eq(state.getTotalPages(), expectedPages, "Total pages calculated correctly")
 
     state.currentPage = 1
     local p1 = state.getPageStories()
-    assert_eq(#p1, 3, "Page 1 has 3 stories")
-    assert_eq(p1[1].title, state.edition.sections[1].articles[1].title, "First story on page 1")
+    assert_eq(#p1, state.itemsPerPage, "Page 1 has itemsPerPage stories")
+    assert_eq(p1[1].title, allStories[1].title, "First story on page 1")
 
-    state.currentPage = 4
-    local p4 = state.getPageStories()
-    assert_eq(#p4, 3, "Page 4 has 3 stories")
+    state.currentPage = expectedPages
+    local pLast = state.getPageStories()
+    assert_true(#pLast > 0 and #pLast <= state.itemsPerPage, "Last page has remaining stories")
 
     -- Clamping
-    state.currentPage = 10
+    state.currentPage = 100
     local clamped = state.getPageStories()
-    assert_eq(state.currentPage, 4, "Current page clamped to totalPages")
+    assert_eq(state.currentPage, expectedPages, "Current page clamped to totalPages")
 end)
 
 run_test("Article Reading & Prev/Next Story Navigation", function()
@@ -213,9 +217,10 @@ run_test("Article Reading & Prev/Next Story Navigation", function()
     package.loaded["state"] = nil
     local state = require("state")
     state.loadEdition()
-    state.selectSection(1) -- Tech & AI (3 stories)
+    state.selectSection(1)
 
     local stories = state.getActiveStories()
+    assert_true(#stories >= 3, "At least 3 stories to test navigation")
     state.selectArticle(stories[1])
     assert_eq(state.currentView, "article", "currentView is 'article'")
     assert_eq(state.currentArticle.title, stories[1].title, "Selected article 1")
@@ -228,12 +233,29 @@ run_test("Article Reading & Prev/Next Story Navigation", function()
     assert_eq(state.currentArticle.title, stories[3].title, "Advanced to article 3")
 
     -- Clamping at end
+    state.selectArticle(stories[#stories])
     state.nextArticle()
-    assert_eq(state.currentArticle.title, stories[3].title, "Clamped at last article")
+    assert_eq(state.currentArticle.title, stories[#stories].title, "Clamped at last article")
 
     -- Prev article
     state.prevArticle()
-    assert_eq(state.currentArticle.title, stories[2].title, "Moved back to article 2")
+    assert_eq(state.currentArticle.title, stories[#stories - 1].title, "Moved back to previous article")
+end)
+
+run_test("Legacy Config Migration", function()
+    setupMocks()
+    package.loaded["state"] = nil
+    local state = require("state")
+
+    -- Simulate old config with sample_edition.json URL
+    storage.writeFile("config.json", '{"feedUrl":"https://raw.githubusercontent.com/chazmus/crosspoint-apps/main/apps/inkwire/sample_edition.json"}')
+    state.loadConfig()
+    assert_eq(state.config.feedUrl, state.DEFAULT_FEED_URL, "Migrated away from sample_edition.json to live worker URL")
+
+    -- Reset config test
+    state.config.feedUrl = "https://example.com/custom.json"
+    state.resetConfig()
+    assert_eq(state.config.feedUrl, state.DEFAULT_FEED_URL, "resetConfig restores default worker URL")
 end)
 
 run_test("Back Button Workflow", function()

@@ -1,10 +1,13 @@
 -- State management for InkWire
 local json = require("json")
 
+local DEFAULT_FEED_URL = "https://inkwire-worker.charles-s-bailey.workers.dev/today.json"
+
 local state = {
+    DEFAULT_FEED_URL = DEFAULT_FEED_URL,
     edition = nil,
     config = {
-        feedUrl = "https://inkwire-worker.charles-s-bailey.workers.dev/today.json"
+        feedUrl = DEFAULT_FEED_URL
     },
     currentSectionIndex = 0, -- 0 = "All", 1..N = specific section
     currentPage = 1,
@@ -27,7 +30,13 @@ function state.loadConfig()
         local cfg = json.decode(data)
         if cfg and type(cfg) == "table" then
             if cfg.feedUrl and cfg.feedUrl ~= "" then
-                state.config.feedUrl = cfg.feedUrl
+                -- Automatically migrate away from legacy/sample URLs saved during development
+                if cfg.feedUrl:find("sample_edition%.json") or cfg.feedUrl:find("raw%.githubusercontent%.com") then
+                    state.config.feedUrl = DEFAULT_FEED_URL
+                    state.saveConfig()
+                else
+                    state.config.feedUrl = cfg.feedUrl
+                end
             end
         end
     end
@@ -39,6 +48,11 @@ function state.saveConfig()
     if str then
         storage.writeFile("config.json", str)
     end
+end
+
+function state.resetConfig()
+    state.config.feedUrl = DEFAULT_FEED_URL
+    state.saveConfig()
 end
 
 function state.loadEdition()
@@ -203,8 +217,11 @@ function state.syncEdition(onComplete)
         crosspoint.requestUpdate()
 
         local url = state.config.feedUrl
+        if log and log.info then log.info("InkWire", "Syncing feed from: " .. tostring(url)) end
+
         local rawData = crosspoint.httpGet(url)
         if not rawData or rawData == "" then
+            if log and log.warn then log.warn("InkWire", "HTTP GET failed or empty response from: " .. tostring(url)) end
             state.isSyncing = false
             state.syncStatus = "Download Failed"
             state.syncError = "Server returned empty response or HTTP error"
@@ -213,14 +230,18 @@ function state.syncEdition(onComplete)
             return
         end
 
+        if log and log.info then log.info("InkWire", "Downloaded " .. tostring(#rawData) .. " bytes") end
         local ok = state.saveEdition(rawData)
         state.isSyncing = false
         if ok then
             state.syncSuccess = true
-            state.syncStatus = "Edition Updated Successfully!"
+            local numArticles = #state.getActiveStories()
+            local dateStr = (state.edition and state.edition.edition) or "Latest"
+            state.syncStatus = string.format("Updated: %s (%d articles)", dateStr, numArticles)
             state.syncError = nil
             state.currentPage = 1
         else
+            if log and log.error then log.error("InkWire", "Failed to parse JSON edition") end
             state.syncSuccess = false
             state.syncStatus = "Invalid Edition Data"
             state.syncError = "Could not parse JSON payload from feed server"

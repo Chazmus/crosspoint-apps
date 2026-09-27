@@ -14,7 +14,8 @@ end
 function modals.drawSyncModal()
     local title = state.isSyncing and "Updating Edition" or (state.syncSuccess and "Sync Complete" or "Sync Failed")
     local msg = state.syncStatus
-    local subtext = state.syncError or (state.isSyncing and "Connecting to Wi-Fi and downloading latest feed..." or "Your offline edition has been saved.")
+    local hostName = (state.config.feedUrl or ""):match("https?://([^/]+)") or "Feed Server"
+    local subtext = state.syncError or (state.isSyncing and ("Connecting to Wi-Fi & " .. hostName .. "...") or ("Source: " .. hostName))
     local btnLabel = state.isSyncing and "Please wait..." or "Continue"
 
     modals.btnActionHit = ui.drawModal(title, msg, subtext, btnLabel, 180)
@@ -69,10 +70,10 @@ function modals.drawSettingsModal()
     end
     cy = cy + 14
 
-    -- Reset to Sample Edition Button
+    -- Reset Feed URL Button
     local resetBtnW = contentW
     local resetBtnH = 44
-    ui.drawButton(contentX, cy, resetBtnW, resetBtnH, "Reload Sample Edition", false, gfx.FONT_NOTOSANS_12)
+    ui.drawButton(contentX, cy, resetBtnW, resetBtnH, "Reset URL to Official Worker", false, gfx.FONT_NOTOSANS_12)
     modals.btnSecondaryHit = { x = contentX, y = cy, w = resetBtnW, h = resetBtnH }
     cy = cy + resetBtnH + 16
 
@@ -93,7 +94,8 @@ function modals.onTouch(x, y)
         end
     elseif state.currentView == "settings_modal" then
         if hitTest(modals.btnSecondaryHit, x, y) then
-            -- Reset to sample edition
+            -- Reset feed URL to official worker
+            state.resetConfig()
             if storage then
                 storage.remove("edition.json")
             end
