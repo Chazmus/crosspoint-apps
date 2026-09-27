@@ -1,6 +1,7 @@
 #pragma once
 
 #include <FreeInkUICore.h>
+#include <functional>
 #include <map>
 #include <memory>
 #include <string>
@@ -20,10 +21,13 @@ namespace sim {
 
 enum class UiThemeType { Lyra = 0, RoundedRaff = 1, Classic = 2 };
 
+using UiInvoker = std::function<int(lua_State* L, int touchX, int touchY, int16_t value)>;
+
 struct UiCallback {
   int luaFuncRef = -1;
   std::string name;
   int16_t value = 0;
+  UiInvoker invoker = nullptr;
 };
 
 class SimUiHost {
@@ -48,6 +52,8 @@ class SimUiHost {
 
   freeink::ui::ActionId registerCallback(lua_State* L, int funcIndex, int16_t value = 0,
                                          const std::string& name = "");
+  freeink::ui::ActionId registerCallbackWithInvoker(lua_State* L, int funcIndex, UiInvoker invoker,
+                                                    int16_t value = 0, const std::string& name = "");
 
   freeink::ui::Frame<INTERACTION_CAPACITY>* currentFrame() { return frame_.get(); }
   SimDrawTarget& drawTarget() { return drawTarget_; }

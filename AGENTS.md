@@ -180,6 +180,17 @@ The `ui` module gives Lua apps direct access to the firmware's native FreeInkUI 
 - `ui.drawToggle(props)`: Renders switch toggle control (`{ x, y, w, h, checked, enabled, onToggle = function(newVal) end }`).
 - `ui.drawDialog(props)`: Renders modal dialog box with background dimming and action buttons (`{ title, headline, message, dimBackground = true, buttons = { { label, onClick } } }`).
 - `ui.drawToast(props)`: Renders floating toast notification pill (`{ message, icon, y, durationMs }`).
+- `ui.drawSlider(props)`: Renders interactive horizontal slider (`{ x, y, w, h, value, min, max, enabled, onChange = function(val) end }`).
+- `ui.drawCapsuleSlider(props)`: Renders compact filled capsule slider with rounded drag handle (`{ x, y, w, h, value, min, max, enabled, onChange = function(val) end }`).
+- `ui.drawProgressBar(props)`: Renders read-only progress indicator (`{ x, y, w, h, value, max, variant = "solid"|"dither" }`).
+- `ui.drawCheckbox(props)`: Renders square checkbox with checkmark (`{ x, y, w, h, label, checked, enabled, onToggle = function(checked) end }`).
+- `ui.drawSettingRow(props)`: Renders styled settings row (`{ x, y, w, h, label, subtitle, value, drawChevron, enabled, onClick = function() end }`).
+- `ui.drawToggleRow(props)`: Renders settings row with integrated switch toggle (`{ x, y, w, h, label, subtitle, checked, enabled, onToggle = function(checked) end }`).
+- `ui.drawStepperRow(props)`: Renders `[-] Value [+]` stepper increment control (`{ x, y, w, h, label, subtitle, value, onDecrement = function() end, onIncrement = function() end }`).
+- `ui.drawRadioGroup(props)`: Renders segmented radio selection buttons (`{ x, y, w, h, options = { "Option1", "Option2" }, selectedIndex = 1, onSelect = function(idx) end }`).
+- `ui.drawTable(props)`: Renders multi-column tabular data grid (`{ x, y, w, h, rows, cols, cells = { ... }, headerRow = true, rowHeight = 28 }`).
+- `ui.drawMetricCard(props)`: Renders dashboard stat card (`{ x, y, w, h, label, value, unit, caption, centered = true, onClick = function() end }`).
+- `ui.drawContextMenu(props)`: Renders popover context action menu with background dimming (`{ x, y, w, title, items = { { label, onClick } } }`).
 
 ### `input` Module
 - `input.wasPressed(btn)`

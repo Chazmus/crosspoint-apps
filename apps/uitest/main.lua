@@ -1,11 +1,16 @@
--- Test Application for FreeInkUI Phase 1 Components
+-- Test Application for FreeInkUI Phase 1 & 2 Components
 
 local state = {
     currentTab = 1,
     counter = 0,
     toggleVal = true,
+    checkboxVal = true,
+    sliderVal = 42,
+    capsuleVal = 65,
+    stepperVal = 14,
+    radioVal = 1,
     showDialog = false,
-    themeIdx = 1,
+    showContextMenu = false,
     themes = { "Lyra", "RoundedRaff", "Classic" }
 }
 
@@ -16,7 +21,7 @@ end
 function onDraw()
     -- 1. Native Header
     local body = ui.drawHeader({
-        title = "UI Kit Showcase",
+        title = "FreeInkUI Showcase",
         subtitle = "Theme: " .. ui.getTheme().name,
         showBack = true,
         showClock = true,
@@ -26,10 +31,10 @@ function onDraw()
         end
     })
 
-    -- 2. Native Tab Bar
+    -- 2. Native Segmented Tab Bar
     ui.drawTabBar({
         y = body.y,
-        tabs = { "Overview", "Controls", "Theme" },
+        tabs = { "Basic", "Sliders", "Settings", "Data" },
         selectedIndex = state.currentTab,
         onSelect = function(idx)
             state.currentTab = idx
@@ -39,13 +44,14 @@ function onDraw()
 
     local curY = body.y + 44
     local w = gfx.getWidth()
+    local contentW = w - 32
 
     if state.currentTab == 1 then
-        -- Overview tab
+        -- Tab 1: Basic Cards & Buttons
         local card = ui.drawCard({
             x = 16,
             y = curY,
-            w = w - 32,
+            w = contentW,
             h = 160,
             variant = "outlined",
             padding = 14,
@@ -73,7 +79,7 @@ function onDraw()
             y = curY,
             w = 140,
             h = 44,
-            label = "Primary Button",
+            label = "+10",
             variant = "primary",
             onClick = function()
                 state.counter = state.counter + 10
@@ -108,76 +114,203 @@ function onDraw()
         })
 
     elseif state.currentTab == 2 then
-        -- Controls tab
-        local card = ui.drawCard({
+        -- Tab 2: Sliders, Progress & Checkbox
+        gfx.drawText(gfx.FONT_NOTOSANS_14, 16, curY, "Standard Slider: " .. tostring(state.sliderVal) .. "%", true)
+        curY = curY + 24
+        ui.drawSlider({
             x = 16,
             y = curY,
-            w = w - 32,
-            h = 240,
-            padding = 16
-        })
-
-        gfx.drawText(gfx.FONT_NOTOSANS_14, card.innerX, card.innerY, "Toggle Switch Control", true)
-        gfx.drawText(gfx.FONT_NOTOSERIF_12, card.innerX, card.innerY + 28, "Toggle state: " .. (state.toggleVal and "ON" or "OFF"), true)
-
-        ui.drawToggle({
-            x = card.innerX + card.innerW - 48,
-            y = card.innerY + 10,
-            checked = state.toggleVal,
-            onToggle = function(newChecked)
-                state.toggleVal = (newChecked == 1 or newChecked == true)
+            w = contentW,
+            h = 32,
+            value = state.sliderVal,
+            min = 0,
+            max = 100,
+            onChange = function(newVal)
+                state.sliderVal = newVal
                 crosspoint.requestUpdate()
             end
         })
 
-        gfx.drawLine(card.innerX, card.innerY + 70, card.innerX + card.innerW, card.innerY + 70, gfx.COLOR_BLACK)
-
-        gfx.drawText(gfx.FONT_NOTOSANS_14, card.innerX, card.innerY + 86, "Badges & Chips", true)
-        ui.drawBadge({
-            x = card.innerX,
-            y = card.innerY + 116,
-            text = "FILLED BADGE",
-            variant = "filled"
+        curY = curY + 48
+        gfx.drawText(gfx.FONT_NOTOSANS_14, 16, curY, "Capsule Slider: " .. tostring(state.capsuleVal) .. "%", true)
+        curY = curY + 24
+        ui.drawCapsuleSlider({
+            x = 16,
+            y = curY,
+            w = contentW,
+            h = 36,
+            value = state.capsuleVal,
+            min = 0,
+            max = 100,
+            onChange = function(newVal)
+                state.capsuleVal = newVal
+                crosspoint.requestUpdate()
+            end
         })
 
-        ui.drawBadge({
-            x = card.innerX + 130,
-            y = card.innerY + 116,
-            text = "OUTLINE BADGE",
-            variant = "outlined"
+        curY = curY + 54
+        gfx.drawText(gfx.FONT_NOTOSANS_14, 16, curY, "Progress Bar (" .. tostring(state.sliderVal) .. "%)", true)
+        curY = curY + 22
+        ui.drawProgressBar({
+            x = 16,
+            y = curY,
+            w = contentW,
+            h = 14,
+            value = state.sliderVal,
+            max = 100
+        })
+
+        curY = curY + 40
+        ui.drawCheckbox({
+            x = 16,
+            y = curY,
+            w = contentW,
+            h = 36,
+            label = "Enable High Contrast Dithering",
+            checked = state.checkboxVal,
+            onToggle = function(newChecked)
+                state.checkboxVal = newChecked
+                crosspoint.requestUpdate()
+            end
         })
 
     elseif state.currentTab == 3 then
-        -- Theme switcher tab
-        local card = ui.drawCard({
+        -- Tab 3: Setting Rows & Steppers
+        ui.drawSettingRow({
             x = 16,
             y = curY,
-            w = w - 32,
-            h = 280,
-            padding = 16
+            w = contentW,
+            h = 50,
+            label = "Screen Refresh Mode",
+            subtitle = "Automatic e-ink waveform selection",
+            value = "Fast",
+            drawChevron = true,
+            onClick = function()
+                ui.drawToast({ message = "Tapped Refresh Mode", anchor = "bottom" })
+                crosspoint.requestUpdate()
+            end
         })
 
-        local theme = ui.getTheme()
-        gfx.drawText(gfx.FONT_NOTOSANS_14, card.innerX, card.innerY, "Active Theme: " .. theme.name, true)
-        gfx.drawText(gfx.FONT_NOTOSERIF_12, card.innerX, card.innerY + 28, "Corner Radius: " .. tostring(theme.controlRadius) .. "px", true)
-        gfx.drawText(gfx.FONT_NOTOSERIF_12, card.innerX, card.innerY + 50, "Header Height: " .. tostring(theme.headerHeight) .. "px", true)
+        curY = curY + 56
+        ui.drawToggleRow({
+            x = 16,
+            y = curY,
+            w = contentW,
+            h = 50,
+            label = "Wi-Fi Standby Sleep",
+            subtitle = "Power down ESP32-S3 radio during sleep",
+            checked = state.toggleVal,
+            onToggle = function(newVal)
+                state.toggleVal = newVal
+                crosspoint.requestUpdate()
+            end
+        })
 
-        local btnY = card.innerY + 90
-        for i, tName in ipairs(state.themes) do
-            local isCurrent = (theme.name == tName)
-            ui.drawButton({
-                x = card.innerX,
-                y = btnY + (i - 1) * 54,
-                w = card.innerW,
-                h = 44,
-                label = (isCurrent and "[x] " or "[ ] ") .. tName .. " Theme",
-                variant = isCurrent and "primary" or "secondary",
-                onClick = function()
-                    ui.setTheme(tName)
+        curY = curY + 56
+        ui.drawStepperRow({
+            x = 16,
+            y = curY,
+            w = contentW,
+            h = 50,
+            label = "Default Font Size",
+            subtitle = "Base reader typography scaling",
+            value = tostring(state.stepperVal) .. " pt",
+            onDecrement = function()
+                if state.stepperVal > 8 then
+                    state.stepperVal = state.stepperVal - 1
                     crosspoint.requestUpdate()
                 end
-            })
-        end
+            end,
+            onIncrement = function()
+                if state.stepperVal < 36 then
+                    state.stepperVal = state.stepperVal + 1
+                    crosspoint.requestUpdate()
+                end
+            end
+        })
+
+        curY = curY + 68
+        ui.drawButton({
+            x = 16,
+            y = curY,
+            w = contentW,
+            h = 44,
+            label = "Open Context Menu...",
+            variant = "secondary",
+            onClick = function()
+                state.showContextMenu = true
+                crosspoint.requestUpdate()
+            end
+        })
+
+    elseif state.currentTab == 4 then
+        -- Tab 4: Metric Cards, Radio Groups & Tables
+        local cardW = math.floor((contentW - 12) / 2)
+        ui.drawMetricCard({
+            x = 16,
+            y = curY,
+            w = cardW,
+            h = 96,
+            label = "TEMPERATURE",
+            value = "21°",
+            unit = "C",
+            caption = "London • Sunny",
+            onClick = function()
+                ui.drawToast({ message = "Refreshed weather" })
+            end
+        })
+
+        ui.drawMetricCard({
+            x = 16 + cardW + 12,
+            y = curY,
+            w = cardW,
+            h = 96,
+            label = "BATTERY",
+            value = "87%",
+            caption = "Charging • 4.12V",
+            onClick = function()
+                ui.drawToast({ message = "Battery healthy" })
+            end
+        })
+
+        curY = curY + 112
+        gfx.drawText(gfx.FONT_NOTOSANS_14, 16, curY, "Theme Selector (Radio Group)", true)
+        curY = curY + 22
+        ui.drawRadioGroup({
+            x = 16,
+            y = curY,
+            w = contentW,
+            h = 38,
+            options = { "Lyra", "RoundedRaff", "Classic" },
+            selectedIndex = state.radioVal,
+            onSelect = function(idx)
+                state.radioVal = idx
+                if state.themes[idx] then
+                    ui.setTheme(state.themes[idx])
+                end
+                crosspoint.requestUpdate()
+            end
+        })
+
+        curY = curY + 54
+        gfx.drawText(gfx.FONT_NOTOSANS_14, 16, curY, "Tabular Data Grid", true)
+        curY = curY + 22
+        ui.drawTable({
+            x = 16,
+            y = curY,
+            w = contentW,
+            h = 120,
+            rows = 4,
+            cols = 3,
+            rowHeight = 28,
+            headerRow = true,
+            cells = {
+                "Rank", "Player", "Elo",
+                "1", "Carlsen", "2882",
+                "2", "Nakamura", "2802",
+                "3", "Caruana", "2805"
+            }
+        })
     end
 
     -- 3. Dialog Modal Overlay (if active)
@@ -185,13 +318,47 @@ function onDraw()
         ui.drawDialog({
             title = "Modal Dialog",
             headline = "FreeInkUI OptionDialog",
-            message = "This dialog features automatic background dithering and themed buttons.",
+            message = "This dialog features background dithering and themed buttons.",
             buttons = {
                 {
                     label = "Dismiss",
-                    variant = "primary",
                     onClick = function()
                         state.showDialog = false
+                        crosspoint.requestUpdate()
+                    end
+                }
+            }
+        })
+    end
+
+    -- 4. Context Menu Overlay (if active)
+    if state.showContextMenu then
+        ui.drawContextMenu({
+            x = 40,
+            y = 220,
+            w = w - 80,
+            title = "Actions",
+            items = {
+                {
+                    label = "Send via Tailscale",
+                    onClick = function()
+                        state.showContextMenu = false
+                        ui.drawToast({ message = "Handoff initiated" })
+                        crosspoint.requestUpdate()
+                    end
+                },
+                {
+                    label = "Bookmark Story",
+                    onClick = function()
+                        state.showContextMenu = false
+                        ui.drawToast({ message = "Bookmarked!" })
+                        crosspoint.requestUpdate()
+                    end
+                },
+                {
+                    label = "Cancel",
+                    onClick = function()
+                        state.showContextMenu = false
                         crosspoint.requestUpdate()
                     end
                 }
@@ -201,6 +368,5 @@ function onDraw()
 end
 
 function onTouch(x, y)
-    -- Fall through for any touches outside FreeInkUI components
-    log.info("UITEST", "Custom onTouch tap at: " .. tostring(x) .. ", " .. tostring(y))
+    log.info("UITEST", "Touch tap at: " .. tostring(x) .. ", " .. tostring(y))
 end
