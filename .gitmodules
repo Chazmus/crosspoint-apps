@@ -1,0 +1,3 @@
+[submodule "sdk/freeink-sdk"]
+	path = sdk/freeink-sdk
+	url = https://github.com/Free-Ink/freeink-sdk.git

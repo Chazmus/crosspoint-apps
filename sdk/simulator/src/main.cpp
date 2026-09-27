@@ -13,6 +13,7 @@
 #include "LuaSimBindings.h"
 #include "SimRenderer.h"
 #include "SimStorage.h"
+#include "SimUiHost.h"
 
 namespace fs = std::filesystem;
 
@@ -149,9 +150,11 @@ int main(int argc, char* argv[]) {
     simRenderer.setOrientation(initOrient);
 
     sim::SimStorage simStorage(appDir);
+    sim::SimUiHost simUiHost(simRenderer, fontRenderer);
     sim::SimContext simCtx;
     simCtx.renderer = &simRenderer;
     simCtx.storage = &simStorage;
+    simCtx.uiHost = &simUiHost;
     simCtx.appDir = appDir;
 
     lua_State* L = luaL_newstate();
@@ -186,6 +189,7 @@ int main(int argc, char* argv[]) {
     }
 
     simRenderer.clearScreen(1);
+    simUiHost.beginFrame(L);
     const char* drawFn = screenshotSleep ? "onSleepDraw" : "onDraw";
     const auto drawT0 = std::chrono::steady_clock::now();
     lua_getglobal(L, drawFn);
@@ -200,6 +204,7 @@ int main(int argc, char* argv[]) {
     } else {
       lua_pop(L, 1);
     }
+    simUiHost.endFrame();
     const auto drawT1 = std::chrono::steady_clock::now();
     if (enableProfiling) {
       const double ms = std::chrono::duration<double, std::milli>(drawT1 - drawT0).count();
@@ -223,6 +228,7 @@ int main(int argc, char* argv[]) {
     } else {
       lua_pop(L, 1);
     }
+    simUiHost.detachLua();
     lua_close(L);
     return 0;
   }
@@ -279,9 +285,11 @@ int main(int argc, char* argv[]) {
   simRenderer.setOrientation(initOrient);
 
   sim::SimStorage simStorage(appDir);
+  sim::SimUiHost simUiHost(simRenderer, fontRenderer);
   sim::SimContext simCtx;
   simCtx.renderer = &simRenderer;
   simCtx.storage = &simStorage;
+  simCtx.uiHost = &simUiHost;
   simCtx.appDir = appDir;
 
   lua_State* L = nullptr;
@@ -307,11 +315,13 @@ int main(int argc, char* argv[]) {
   const auto redraw = [&]() {
     const auto t0 = std::chrono::steady_clock::now();
     simRenderer.clearScreen(1);
+    simUiHost.beginFrame(L);
     if (isSleepPreview) {
       callLua("onSleepDraw");
     } else {
       callLua("onDraw");
     }
+    simUiHost.endFrame();
     SDL_UpdateTexture(texture, nullptr, simRenderer.getPixels(), simRenderer.getWidth() * sizeof(uint32_t));
     SDL_RenderClear(sdlRenderer);
     SDL_RenderCopy(sdlRenderer, texture, nullptr, nullptr);
@@ -339,6 +349,7 @@ int main(int argc, char* argv[]) {
   const auto loadApp = [&]() {
     if (L) {
       callLua("onExit");
+      simUiHost.detachLua();
       lua_close(L);
       L = nullptr;
     }
@@ -434,25 +445,32 @@ int main(int argc, char* argv[]) {
           }
           lua_remove(L, upErrIdx);
 
-          const auto t0 = std::chrono::steady_clock::now();
-          const int errIdx = lua_gettop(L) + 1;
-          lua_pushcfunction(L, luaTraceback);
-          lua_getglobal(L, "onTouch");
-          if (lua_isfunction(L, -1)) {
-            lua_pushinteger(L, e.button.x);
-            lua_pushinteger(L, e.button.y);
-            if (lua_pcall(L, 2, 0, errIdx) != LUA_OK) {
-              std::cerr << "[Lua onTouch Error] " << lua_tostring(L, -1) << std::endl;
+          bool handledByUi = false;
+          if (simCtx.uiHost && L) {
+            handledByUi = simCtx.uiHost->dispatchTouch(e.button.x, e.button.y, L);
+          }
+
+          if (!handledByUi) {
+            const auto t0 = std::chrono::steady_clock::now();
+            const int errIdx = lua_gettop(L) + 1;
+            lua_pushcfunction(L, luaTraceback);
+            lua_getglobal(L, "onTouch");
+            if (lua_isfunction(L, -1)) {
+              lua_pushinteger(L, e.button.x);
+              lua_pushinteger(L, e.button.y);
+              if (lua_pcall(L, 2, 0, errIdx) != LUA_OK) {
+                std::cerr << "[Lua onTouch Error] " << lua_tostring(L, -1) << std::endl;
+                lua_pop(L, 1);
+              }
+            } else {
               lua_pop(L, 1);
             }
-          } else {
-            lua_pop(L, 1);
-          }
-          lua_remove(L, errIdx);
-          const auto t1 = std::chrono::steady_clock::now();
-          if (enableProfiling) {
-            const double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-            std::cout << "[Profile] onTouch(" << e.button.x << ", " << e.button.y << "): " << ms << " ms" << std::endl;
+            lua_remove(L, errIdx);
+            const auto t1 = std::chrono::steady_clock::now();
+            if (enableProfiling) {
+              const double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+              std::cout << "[Profile] onTouch(" << e.button.x << ", " << e.button.y << "): " << ms << " ms" << std::endl;
+            }
           }
           redraw();
         }
@@ -635,6 +653,7 @@ int main(int argc, char* argv[]) {
 
   if (L) {
     callLua("onExit");
+    simUiHost.detachLua();
     lua_close(L);
   }
 

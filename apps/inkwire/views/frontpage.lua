@@ -21,13 +21,13 @@ function frontpage.draw()
         local b = crosspoint.getBattery()
         if b and b.percentage then batteryPct = b.percentage end
     end
-    ui.drawMasthead(state.edition and state.edition.edition, state.edition and state.edition.weather, batteryPct)
+    local headerArea = ui.drawMasthead(state.edition and state.edition.edition, state.edition and state.edition.weather, batteryPct)
 
     -- 2. Section Navigation Tabs
     frontpage.tabHits = {}
-    local tabY = 76
-    local tabH = 30
-    local totalW = w - 32 -- 448px available
+    local tabY = (headerArea and headerArea.y or 44) + 6
+    local tabH = 34
+    local totalW = w - 32
     
     local function formatTabLabel(title)
         if not title or title == "All" then return "All" end
@@ -37,45 +37,72 @@ function frontpage.draw()
         return title
     end
 
-    -- Build list of tab labels: 0="All", then section titles
-    local tabs = { { idx = 0, label = "All" } }
+    local tabLabels = { "All" }
+    local tabIndices = { 0 }
     if state.edition and state.edition.sections then
         for i, sec in ipairs(state.edition.sections) do
-            table.insert(tabs, { idx = i, label = formatTabLabel(sec.title) })
+            table.insert(tabLabels, formatTabLabel(sec.title))
+            table.insert(tabIndices, i)
         end
     end
 
-    local tabFont = gfx.FONT_NOTOSANS_12
-    local numTabs = #tabs
+    local selectedTabSlot = 1
+    for slot, sIdx in ipairs(tabIndices) do
+        if state.currentSectionIndex == sIdx then
+            selectedTabSlot = slot
+            break
+        end
+    end
+
+    if _G.ui and _G.ui.drawTabBar then
+        _G.ui.drawTabBar({
+            x = 16,
+            y = tabY,
+            w = totalW,
+            h = tabH,
+            selectedIndex = selectedTabSlot,
+            tabs = tabLabels,
+            onSelect = function(slot)
+                if tabIndices[slot] ~= nil then
+                    state.selectSection(tabIndices[slot])
+                end
+            end
+        })
+    end
+
+    local numTabs = #tabLabels
     local tabGap = 6
     local tabW = math.floor((totalW - (numTabs - 1) * tabGap) / numTabs)
 
-    for i, tab in ipairs(tabs) do
-        local tx = 16 + (i - 1) * (tabW + tabGap)
-        local isSelected = (state.currentSectionIndex == tab.idx)
-        if isSelected then
-            gfx.fillRoundedRect(tx, tabY, tabW, tabH, 5, gfx.COLOR_BLACK)
-            local lw = ui.getTextWidth(tabFont, tab.label)
-            local lh = ui.getLineHeight(tabFont)
-            gfx.drawText(tabFont, tx + math.floor((tabW - lw) / 2), tabY + math.floor((tabH - lh) / 2), tab.label, false)
-        else
-            gfx.drawRoundedRect(tx, tabY, tabW, tabH, 5, 1, gfx.COLOR_BLACK)
-            local lw = ui.getTextWidth(tabFont, tab.label)
-            local lh = ui.getLineHeight(tabFont)
-            gfx.drawText(tabFont, tx + math.floor((tabW - lw) / 2), tabY + math.floor((tabH - lh) / 2), tab.label, true)
+    for slot, label in ipairs(tabLabels) do
+        local tx = 16 + (slot - 1) * (tabW + tabGap)
+        local isSelected = (selectedTabSlot == slot)
+        if not (_G.ui and _G.ui.drawTabBar) then
+            local tabFont = gfx.FONT_NOTOSANS_12
+            if isSelected then
+                gfx.fillRoundedRect(tx, tabY, tabW, tabH, 5, gfx.COLOR_BLACK)
+                local lw = ui.getTextWidth(tabFont, label)
+                local lh = ui.getLineHeight(tabFont)
+                gfx.drawText(tabFont, tx + math.floor((tabW - lw) / 2), tabY + math.floor((tabH - lh) / 2), label, false)
+            else
+                gfx.drawRoundedRect(tx, tabY, tabW, tabH, 5, 1, gfx.COLOR_BLACK)
+                local lw = ui.getTextWidth(tabFont, label)
+                local lh = ui.getLineHeight(tabFont)
+                gfx.drawText(tabFont, tx + math.floor((tabW - lw) / 2), tabY + math.floor((tabH - lh) / 2), label, true)
+            end
         end
 
         table.insert(frontpage.tabHits, {
-            x = tx, y = tabY, w = tabW, h = tabH, idx = tab.idx
+            x = tx, y = tabY, w = tabW, h = tabH, idx = tabIndices[slot]
         })
     end
 
     -- 3. Story Cards List
     frontpage.cardHits = {}
     local stories = state.getPageStories()
-    local cardStartY = 116
-    local cardH = 188
-    local cardGap = 12
+    local cardStartY = tabY + tabH + 8
+    local cardH = 186
+    local cardGap = 10
     local cardW = w - 32
     local cardX = 16
 
@@ -88,15 +115,17 @@ function frontpage.draw()
         for i, story in ipairs(stories) do
             local cy = cardStartY + (i - 1) * (cardH + cardGap)
             local isHero = (state.currentSectionIndex == 0 and state.currentPage == 1 and i == 1)
-            ui.drawStoryCard(cardX, cy, cardW, cardH, story, isHero)
+            ui.drawStoryCard(cardX, cy, cardW, cardH, story, isHero, function()
+                state.selectArticle(story)
+            end)
             table.insert(frontpage.cardHits, {
                 x = cardX, y = cy, w = cardW, h = cardH, story = story
             })
         end
     end
 
-    -- 4. Bottom Action Bar (Y: 728 to 772)
-    local bottomY = 728
+    -- 4. Bottom Action Bar (Y: 732 to 776)
+    local bottomY = 732
     local btnH = 44
     frontpage.btnPrevHit = nil
     frontpage.btnNextHit = nil
@@ -107,9 +136,12 @@ function frontpage.draw()
 
     -- Pagination controls (Left side)
     if totalPages > 1 then
-        local pBtnW = 66
+        local pBtnW = 72
         if state.currentPage > 1 then
-            ui.drawButton(16, bottomY, pBtnW, btnH, "< Prev", false, gfx.FONT_NOTOSANS_12)
+            ui.drawButton(16, bottomY, pBtnW, btnH, "< Prev", false, gfx.FONT_NOTOSANS_12, function()
+                state.currentPage = state.currentPage - 1
+                crosspoint.requestUpdate()
+            end)
             frontpage.btnPrevHit = { x = 16, y = bottomY, w = pBtnW, h = btnH }
         end
 
@@ -120,7 +152,10 @@ function frontpage.draw()
 
         if state.currentPage < totalPages then
             local nextX = pageStrX + pw + 8
-            ui.drawButton(nextX, bottomY, pBtnW, btnH, "Next >", false, gfx.FONT_NOTOSANS_12)
+            ui.drawButton(nextX, bottomY, pBtnW, btnH, "Next >", false, gfx.FONT_NOTOSANS_12, function()
+                state.currentPage = state.currentPage + 1
+                crosspoint.requestUpdate()
+            end)
             frontpage.btnNextHit = { x = nextX, y = bottomY, w = pBtnW, h = btnH }
         end
     else
@@ -130,14 +165,19 @@ function frontpage.draw()
     end
 
     -- Right Action Buttons: [Sync] and [Settings]
-    local cfgW = 76
+    local cfgW = 84
     local cfgX = w - 16 - cfgW
-    ui.drawButton(cfgX, bottomY, cfgW, btnH, "Settings", false, gfx.FONT_NOTOSANS_12)
+    ui.drawButton(cfgX, bottomY, cfgW, btnH, "Settings", false, gfx.FONT_NOTOSANS_12, function()
+        state.currentView = "settings_modal"
+        crosspoint.requestUpdate()
+    end)
     frontpage.btnSettingsHit = { x = cfgX, y = bottomY, w = cfgW, h = btnH }
 
-    local syncW = 86
+    local syncW = 84
     local syncX = cfgX - 8 - syncW
-    ui.drawButton(syncX, bottomY, syncW, btnH, "Sync", false, gfx.FONT_NOTOSANS_12)
+    ui.drawButton(syncX, bottomY, syncW, btnH, "Sync", false, gfx.FONT_NOTOSANS_12, function()
+        state.syncEdition()
+    end)
     frontpage.btnSyncHit = { x = syncX, y = bottomY, w = syncW, h = btnH }
 end
 

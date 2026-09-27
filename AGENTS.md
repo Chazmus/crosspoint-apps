@@ -168,6 +168,19 @@ The host runtime calls these global functions in `main.lua`:
 - `gfx.drawQrCode(x, y, w, h, text)`: Renders 1-bit QR code centered within bounding box.
 - `gfx.displayBuffer([mode])`: `gfx.REFRESH_FAST`, `REFRESH_HALF`, `REFRESH_FULL`.
 
+### `ui` Module (Native FreeInkUI Components)
+The `ui` module gives Lua apps direct access to the firmware's native FreeInkUI component library and theme engine:
+- `ui.getTheme()`: Returns current theme properties (`{ id = <str>, controlRadius = <int>, listRowRadius = <int>, cardRadius = <int>, contentPadding = <int>, itemSpacing = <int>, separatorInset = <int> }`).
+- `ui.setTheme(themeId)`: Sets active UI theme (`"nord"`, `"clean_light"`, `"eink_classic"`, `"cyberpunk"`, etc.).
+- `ui.drawHeader(props)`: Renders top app masthead / navigation bar with title, optional clock, battery percentage, and action icon (`{ title, subtitle, showBattery, batteryPct, showTime, timeStr, icon, onIconClick, h, border }`).
+- `ui.drawTabBar(props)`: Renders segmented tab bar with automatic theme pill styling (`{ x, y, w, h, tabs = { "Tab1", "Tab2" }, selectedIndex = 1, onSelect = function(idx) end }`).
+- `ui.drawButton(props)`: Renders interactive button with native styling and touch callback (`{ x, y, w, h, label, variant = "primary"|"secondary"|"ghost", enabled = true, radius, onClick = function() end }`).
+- `ui.drawCard(props)`: Renders container card with theme border and background (`{ x, y, w, h, variant = "outlined"|"filled"|"dithered", radius, padding, onClick = function() end }`). Returns `{ x, y, w, h, innerX, innerY, innerW, innerH }`.
+- `ui.drawBadge(props)`: Renders compact label badge (`{ x, y, label, variant = "solid"|"outline"|"dither", font }`). Returns `{ x, y, w, h }`.
+- `ui.drawToggle(props)`: Renders switch toggle control (`{ x, y, w, h, checked, enabled, onToggle = function(newVal) end }`).
+- `ui.drawDialog(props)`: Renders modal dialog box with background dimming and action buttons (`{ title, headline, message, dimBackground = true, buttons = { { label, onClick } } }`).
+- `ui.drawToast(props)`: Renders floating toast notification pill (`{ message, icon, y, durationMs }`).
+
 ### `input` Module
 - `input.wasPressed(btn)`
 - `input.isPressed(btn)`

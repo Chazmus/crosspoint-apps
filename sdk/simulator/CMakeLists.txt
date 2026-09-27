@@ -9,16 +9,25 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(SDL2 REQUIRED IMPORTED_TARGET sdl2)
 pkg_check_modules(CURL REQUIRED IMPORTED_TARGET libcurl)
 
+set(FREEINK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../freeink-sdk/libs/ui/FreeInkUI")
+
 file(GLOB LUA_SOURCES "lua/*.c")
 file(GLOB SIM_SOURCES "src/*.cpp")
 file(GLOB SIM_C_SOURCES "src/*.c")
 
-add_executable(crosspoint-sim ${LUA_SOURCES} ${SIM_SOURCES} ${SIM_C_SOURCES})
+add_executable(crosspoint-sim
+    ${LUA_SOURCES}
+    ${SIM_SOURCES}
+    ${SIM_C_SOURCES}
+    ${FREEINK_DIR}/src/FreeInkUI.cpp
+)
 
 target_include_directories(crosspoint-sim PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/lua
     ${CMAKE_CURRENT_SOURCE_DIR}/stb
+    ${FREEINK_DIR}/include
+    ${FREEINK_DIR}/src
 )
 
 target_link_libraries(crosspoint-sim PRIVATE

@@ -53,7 +53,15 @@ function ui.wrapText(font, text, maxW)
     return lines
 end
 
-function ui.drawButton(x, y, w, h, label, isFilled, fontId)
+function ui.drawButton(x, y, w, h, label, isFilled, fontId, onClick)
+    if _G.ui and _G.ui.drawButton then
+        return _G.ui.drawButton({
+            x = x, y = y, w = w, h = h,
+            label = label,
+            variant = isFilled and "primary" or "secondary",
+            onClick = onClick
+        })
+    end
     fontId = fontId or gfx.FONT_NOTOSANS_12
     local lh = ui.getLineHeight(fontId)
     local lw = ui.getTextWidth(fontId, label)
@@ -70,6 +78,16 @@ function ui.drawButton(x, y, w, h, label, isFilled, fontId)
 end
 
 function ui.drawMasthead(editionTitle, weather, batteryPct)
+    if _G.ui and _G.ui.drawHeader then
+        local sub = editionTitle or "DAILY BRIEFING"
+        return _G.ui.drawHeader({
+            title = "THE INKWIRE CHRONICLE",
+            subtitle = sub,
+            rightLabel = weather or "",
+            showBattery = true,
+            showClock = true
+        })
+    end
     local w = gfx.getWidth()
     -- Top hairline rule
     gfx.drawLine(16, 8, w - 16, 8, gfx.COLOR_BLACK)
@@ -100,9 +118,81 @@ function ui.drawMasthead(editionTitle, weather, batteryPct)
 
     -- Single clean bottom hairline rule with comfortable breathing room
     gfx.drawLine(16, 68, w - 16, 68, gfx.COLOR_BLACK)
+    return { x = 0, y = 70, w = w, h = gfx.getHeight() - 70 }
 end
 
-function ui.drawStoryCard(x, y, w, h, article, isHero)
+function ui.drawStoryCard(x, y, w, h, article, isHero, onClick)
+    if _G.ui and _G.ui.drawCard and _G.ui.drawBadge then
+        local card = _G.ui.drawCard({
+            x = x, y = y, w = w, h = h,
+            variant = "outlined",
+            padding = 12,
+            onClick = onClick
+        })
+
+        -- Source badge / Beat tag
+        local badgeText = (article.sectionTitle and (article.sectionTitle:upper() .. "  ") or "") ..
+                          (article.source or "Unknown Source")
+        if article.time and article.time ~= "" then
+            badgeText = badgeText .. " • " .. article.time
+        end
+        local badge = _G.ui.drawBadge({
+            x = card.innerX,
+            y = card.innerY,
+            text = badgeText,
+            variant = isHero and "filled" or "outlined",
+            font = gfx.FONT_UI_10
+        })
+
+        -- Headline
+        local headlineFont = isHero and gfx.FONT_NOTOSANS_14 or gfx.FONT_NOTOSANS_12
+        local headLines = ui.wrapText(headlineFont, article.title or "Untitled", card.innerW)
+        local maxHeadLines = 2
+        local curY = card.innerY + badge.h + 6
+        for i = 1, math.min(#headLines, maxHeadLines) do
+            local lineText = headLines[i]
+            if i == maxHeadLines and #headLines > maxHeadLines then
+                lineText = ui.truncateText(headlineFont, lineText, card.innerW)
+            end
+            gfx.drawText(headlineFont, card.innerX, curY, lineText, true)
+            curY = curY + ui.getLineHeight(headlineFont) + 2
+        end
+        curY = curY + 2
+
+        -- Teaser: Render takeaways / summary lines
+        local teaserFont = gfx.FONT_NOTOSERIF_12
+        local remainingH = (y + h) - curY - 22
+        local maxTeaserLines = math.max(1, math.floor(remainingH / (ui.getLineHeight(teaserFont) + 2)))
+        local linesRendered = 0
+
+        if article.bullets and #article.bullets > 0 then
+            for _, b in ipairs(article.bullets) do
+                if linesRendered >= maxTeaserLines then break end
+                local bLines = ui.wrapText(teaserFont, "• " .. b, card.innerW)
+                for _, bline in ipairs(bLines) do
+                    if linesRendered >= maxTeaserLines then break end
+                    gfx.drawText(teaserFont, card.innerX, curY, bline, true)
+                    curY = curY + ui.getLineHeight(teaserFont) + 2
+                    linesRendered = linesRendered + 1
+                end
+            end
+        elseif article.body and article.body ~= "" then
+            local bodyLines = ui.wrapText(teaserFont, article.body, card.innerW)
+            for _, bline in ipairs(bodyLines) do
+                if linesRendered >= maxTeaserLines then break end
+                gfx.drawText(teaserFont, card.innerX, curY, bline, true)
+                curY = curY + ui.getLineHeight(teaserFont) + 2
+                linesRendered = linesRendered + 1
+            end
+        end
+
+        -- Bottom action teaser tag
+        local readTag = "Read Brief >"
+        local rw = ui.getTextWidth(gfx.FONT_UI_10, readTag)
+        gfx.drawText(gfx.FONT_UI_10, x + w - rw - 14, y + h - 18, readTag, true)
+        return card
+    end
+
     -- Card background and clean 1px border
     gfx.drawRoundedRect(x, y, w, h, 6, 1, gfx.COLOR_BLACK)
     
@@ -166,7 +256,21 @@ function ui.drawStoryCard(x, y, w, h, article, isHero)
     gfx.drawText(gfx.FONT_UI_10, x + w - rw - padX, y + h - 18, readTag, true)
 end
 
-function ui.drawModal(title, msg, subtext, buttonText, buttonW)
+function ui.drawModal(title, msg, subtext, buttonText, buttonW, onAction)
+    if _G.ui and _G.ui.drawDialog then
+        return _G.ui.drawDialog({
+            title = title,
+            headline = msg,
+            message = subtext,
+            buttons = {
+                {
+                    label = buttonText or "OK",
+                    onClick = onAction or function() end
+                }
+            }
+        })
+    end
+
     local w = gfx.getWidth()
     local h = gfx.getHeight()
 

@@ -1,12 +1,12 @@
 {
   "name": "CrossPoint Official Apps",
   "description": "Curated community Lua applications for CrossPoint reader",
-  "version": 22,
+  "version": 23,
   "apps": [
     {
       "id": "inkwire",
       "name": "InkWire",
-      "version": "1.0.4",
+      "version": "1.0.5",
       "author": "CrossPoint",
       "description": "Personal daily news digest & curated feed briefing",
       "icon": "Book",

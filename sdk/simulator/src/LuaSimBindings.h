@@ -12,10 +12,12 @@ namespace sim {
 
 class SimRenderer;
 class SimStorage;
+class SimUiHost;
 
 struct SimContext {
   SimRenderer* renderer = nullptr;
   SimStorage* storage = nullptr;
+  SimUiHost* uiHost = nullptr;
   std::string appDir;
   std::string sleepAppId;
   bool updateRequested = false;

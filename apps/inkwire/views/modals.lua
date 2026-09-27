@@ -18,7 +18,12 @@ function modals.drawSyncModal()
     local subtext = state.syncError or (state.isSyncing and ("Connecting to Wi-Fi & " .. hostName .. "...") or ("Source: " .. hostName))
     local btnLabel = state.isSyncing and "Please wait..." or "Continue"
 
-    modals.btnActionHit = ui.drawModal(title, msg, subtext, btnLabel, 180)
+    modals.btnActionHit = ui.drawModal(title, msg, subtext, btnLabel, 180, function()
+        if not state.isSyncing then
+            state.currentView = "frontpage"
+            if crosspoint then crosspoint.requestUpdate() end
+        end
+    end)
 end
 
 function modals.drawSettingsModal()
@@ -73,7 +78,15 @@ function modals.drawSettingsModal()
     -- Reset Feed URL Button
     local resetBtnW = contentW
     local resetBtnH = 44
-    ui.drawButton(contentX, cy, resetBtnW, resetBtnH, "Reset URL to Official Worker", false, gfx.FONT_NOTOSANS_12)
+    ui.drawButton(contentX, cy, resetBtnW, resetBtnH, "Reset URL to Official Worker", false, gfx.FONT_NOTOSANS_12, function()
+        state.resetConfig()
+        if storage then
+            storage.remove("edition.json")
+        end
+        state.loadEdition()
+        state.currentView = "frontpage"
+        if crosspoint then crosspoint.requestUpdate() end
+    end)
     modals.btnSecondaryHit = { x = contentX, y = cy, w = resetBtnW, h = resetBtnH }
     cy = cy + resetBtnH + 16
 
@@ -81,7 +94,10 @@ function modals.drawSettingsModal()
     local closeBtnW = 160
     local closeBtnH = 44
     local closeX = mx + math.floor((mw - closeBtnW) / 2)
-    ui.drawButton(closeX, cy, closeBtnW, closeBtnH, "Done", true, gfx.FONT_NOTOSANS_12)
+    ui.drawButton(closeX, cy, closeBtnW, closeBtnH, "Done", true, gfx.FONT_NOTOSANS_12, function()
+        state.currentView = "frontpage"
+        if crosspoint then crosspoint.requestUpdate() end
+    end)
     modals.btnActionHit = { x = closeX, y = cy, w = closeBtnW, h = closeBtnH }
 end
 

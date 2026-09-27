@@ -19,28 +19,47 @@ function articleView.draw()
     end
 
     -- 1. Top Header Bar
-    local headY = 12
-    local headH = 40
-    ui.drawButton(16, headY, 84, headH, "< Back", false, gfx.FONT_NOTOSANS_12)
-    articleView.btnBackHit = { x = 16, y = headY, w = 84, h = headH }
+    local curY = 60
+    if _G.ui and _G.ui.drawHeader then
+        local headerArea = _G.ui.drawHeader({
+            title = art.source or "InkWire",
+            subtitle = art.sectionTitle or "Briefing",
+            rightLabel = art.time or "",
+            showBack = true,
+            onBack = function()
+                state.currentView = "frontpage"
+                state.currentArticle = nil
+                if crosspoint then crosspoint.requestUpdate() end
+            end,
+            showBattery = true,
+            showClock = true
+        })
+        articleView.btnBackHit = { x = 0, y = 0, w = 70, h = (headerArea and headerArea.y or 48) }
+        curY = (headerArea and headerArea.y or 48) + 12
+    else
+        local headY = 12
+        local headH = 40
+        ui.drawButton(16, headY, 84, headH, "< Back", false, gfx.FONT_NOTOSANS_12)
+        articleView.btnBackHit = { x = 16, y = headY, w = 84, h = headH }
 
-    -- Section & Source info right-aligned
-    local sourceInfo = (art.sectionTitle and (art.sectionTitle:upper() .. " • ") or "") ..
-                       (art.source or "Source") ..
-                       (art.time and (" • " .. art.time) or "")
-    local infoFont = gfx.FONT_UI_10
-    local iw = ui.getTextWidth(infoFont, sourceInfo)
-    local maxInfoW = w - 16 - 110
-    if iw > maxInfoW then
-        sourceInfo = ui.truncateText(infoFont, sourceInfo, maxInfoW)
-        iw = ui.getTextWidth(infoFont, sourceInfo)
+        -- Section & Source info right-aligned
+        local sourceInfo = (art.sectionTitle and (art.sectionTitle:upper() .. " • ") or "") ..
+                           (art.source or "Source") ..
+                           (art.time and (" • " .. art.time) or "")
+        local infoFont = gfx.FONT_UI_10
+        local iw = ui.getTextWidth(infoFont, sourceInfo)
+        local maxInfoW = w - 16 - 110
+        if iw > maxInfoW then
+            sourceInfo = ui.truncateText(infoFont, sourceInfo, maxInfoW)
+            iw = ui.getTextWidth(infoFont, sourceInfo)
+        end
+        gfx.drawText(infoFont, w - 16 - iw, headY + 12, sourceInfo, true)
+
+        -- Separator line
+        gfx.drawLine(16, headY + headH + 8, w - 16, headY + headH + 8, gfx.COLOR_BLACK)
+        curY = headY + headH + 16
     end
-    gfx.drawText(infoFont, w - 16 - iw, headY + 12, sourceInfo, true)
 
-    -- Separator line
-    gfx.drawLine(16, headY + headH + 8, w - 16, headY + headH + 8, gfx.COLOR_BLACK)
-
-    local curY = headY + headH + 16
     local contentW = w - 32
     local contentX = 16
 
@@ -157,7 +176,9 @@ function articleView.draw()
     articleView.btnNextHit = nil
 
     if idx > 1 then
-        ui.drawButton(16, bottomY, btnW, btnH, "< Prev Story", false, gfx.FONT_NOTOSANS_12)
+        ui.drawButton(16, bottomY, btnW, btnH, "< Prev Story", false, gfx.FONT_NOTOSANS_12, function()
+            state.prevArticle()
+        end)
         articleView.btnPrevHit = { x = 16, y = bottomY, w = btnW, h = btnH }
     end
 
@@ -167,7 +188,9 @@ function articleView.draw()
 
     if idx < #stories then
         local nextX = w - 16 - btnW
-        ui.drawButton(nextX, bottomY, btnW, btnH, "Next Story >", false, gfx.FONT_NOTOSANS_12)
+        ui.drawButton(nextX, bottomY, btnW, btnH, "Next Story >", false, gfx.FONT_NOTOSANS_12, function()
+            state.nextArticle()
+        end)
         articleView.btnNextHit = { x = nextX, y = bottomY, w = btnW, h = btnH }
     end
 end

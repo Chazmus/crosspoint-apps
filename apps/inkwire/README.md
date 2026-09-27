@@ -4,7 +4,7 @@ A personalized daily news digest and curated feed reader for **CrossPoint Reader
 
 ![Category](https://img.shields.io/badge/Category-News%20%26%20Feeds-blue)
 ![Orientation](https://img.shields.io/badge/Orientation-Portrait%20(480x800)-green)
-![Version](https://img.shields.io/badge/Version-1.0.0-orange)
+![Version](https://img.shields.io/badge/Version-1.0.5-orange)
 
 ---
 
@@ -138,7 +138,7 @@ apps/inkwire/
 ├── qr.lua                   # Native 1-bit QR code drawing wrapper
 ├── json.lua                 # Pure-Lua JSON encoder/decoder
 ├── sample_edition.json      # Bundled offline fallback edition
-├── test_inkwire.lua         # Standalone unit test suite (50 tests)
+├── test_inkwire.lua         # Standalone unit test suite (53 tests)
 ├── views/
 │   ├── frontpage.lua        # Masthead, section tabs, and story cards
 │   ├── article.lua          # Deep reading view with takeaways & QR handoff

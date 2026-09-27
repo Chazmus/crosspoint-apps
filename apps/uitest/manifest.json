@@ -1,0 +1,10 @@
+{
+  "id": "uitest",
+  "title": "UI Kit Test",
+  "description": "Test app for FreeInkUI Phase 1 components",
+  "author": "CrossPoint",
+  "icon": "Blocks",
+  "orientation": "portrait",
+  "version": "1.0.0",
+  "sleepScreen": false
+}
