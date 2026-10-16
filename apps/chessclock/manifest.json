@@ -1,0 +1,10 @@
+{
+  "id": "chessclock",
+  "title": "Chess Clock",
+  "description": "Two-player over-the-board chess clock with Fischer increment",
+  "author": "Chazmus",
+  "icon": "Recent",
+  "orientation": "landscape",
+  "version": "1.0.1",
+  "sleepScreen": true
+}
