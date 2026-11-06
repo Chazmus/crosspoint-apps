@@ -5,10 +5,16 @@
 
 local stateEngine = require("state")
 local playerModal = require("views.player_modal")
+local cmdrModal = require("views.cmdr_modal")
 local toolsModal = require("views.tools_modal")
 local settingsModal = require("views.settings_modal")
 
 local modalManager = {}
+
+local function safeNum(n, def)
+    local v = tonumber(n)
+    return (v ~= nil) and v or (def or 0)
+end
 
 local function safeInt(n, def)
     local v = tonumber(n)
@@ -68,6 +74,8 @@ function modalManager.draw(w, h, st)
 
     if uiState.modal == "player_detail" then
         playerModal.draw(w, h, st, uiState.detailPlayer, uiState.linkCmdrDamage)
+    elseif uiState.modal == "cmdr_damage" then
+        cmdrModal.draw(w, h, st, uiState.detailPlayer, uiState.linkCmdrDamage)
     elseif uiState.modal == "tools" then
         toolsModal.draw(w, h, st, uiState.toolsTab, uiState.diceResult, uiState.firstPlayerResult)
     elseif uiState.modal == "reset" then
@@ -95,7 +103,52 @@ function modalManager.handleTouch(x, y, w, h, st)
                 uiState.linkCmdrDamage = not uiState.linkCmdrDamage
                 stateEngine.saveState()
                 if crosspoint and crosspoint.requestUpdate then crosspoint.requestUpdate() end
+            end,
+            function() -- onOpenCmdrModal
+                uiState.modal = "cmdr_damage"
+                if crosspoint and crosspoint.requestUpdate then crosspoint.requestUpdate() end
             end
+        )
+        if handled and crosspoint and crosspoint.requestUpdate then
+            crosspoint.requestUpdate()
+        end
+        return true
+    end
+
+    if uiState.modal == "cmdr_damage" then
+        local handled = cmdrModal.handleTouch(
+            x, y, w, h, st, uiState.detailPlayer, uiState.linkCmdrDamage,
+            {
+                onClose = function()
+                    uiState.modal = nil
+                    if crosspoint and crosspoint.requestUpdate then crosspoint.requestUpdate() end
+                end,
+                onToggleLink = function()
+                    uiState.linkCmdrDamage = not uiState.linkCmdrDamage
+                    stateEngine.saveState()
+                    if crosspoint and crosspoint.requestUpdate then crosspoint.requestUpdate() end
+                end,
+                onChangeDamage = function(opp, delta)
+                    stateEngine.changeCmdrDamage(uiState.detailPlayer, opp, delta, uiState.linkCmdrDamage)
+                    if crosspoint and crosspoint.requestUpdate then crosspoint.requestUpdate() end
+                end,
+                onClearDamage = function(opp)
+                    local p = stateEngine.ensurePlayer(st.players[uiState.detailPlayer], uiState.detailPlayer, st.startingLife)
+                    local cur = safeNum(p.cmdrDmg and p.cmdrDmg[opp], 0)
+                    if cur > 0 then
+                        stateEngine.changeCmdrDamage(uiState.detailPlayer, opp, -cur, uiState.linkCmdrDamage)
+                    end
+                    if crosspoint and crosspoint.requestUpdate then crosspoint.requestUpdate() end
+                end,
+                onSelectPlayer = function(newIdx)
+                    uiState.detailPlayer = newIdx
+                    if crosspoint and crosspoint.requestUpdate then crosspoint.requestUpdate() end
+                end,
+                onOpenDetails = function()
+                    uiState.modal = "player_detail"
+                    if crosspoint and crosspoint.requestUpdate then crosspoint.requestUpdate() end
+                end,
+            }
         )
         if handled and crosspoint and crosspoint.requestUpdate then
             crosspoint.requestUpdate()

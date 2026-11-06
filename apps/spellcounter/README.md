@@ -4,7 +4,7 @@ A feature-rich Magic: The Gathering (MTG) life and counter tracking application 
 
 ![Category](https://img.shields.io/badge/Category-Games%20%26%20Utilities-blue)
 ![Orientation](https://img.shields.io/badge/Orientation-Landscape%20(800x480)-green)
-![Version](https://img.shields.io/badge/Version-1.0.8-orange)
+![Version](https://img.shields.io/badge/Version-1.0.9-orange)
 
 ---
 
@@ -28,15 +28,22 @@ It supports 1 to 4 players with configurable card themes, commander damage matri
 - **Press & Hold (±10)**: Press and hold on `-` or `+` for $\ge 500\text{ms}$ to start rapidly ticking life by $\pm 10$ once every second while held. Lifting your finger cleanly stops ticking without triggering an accidental single tap.
 - **Delta Overlay**: Displays recent net life changes (e.g. `+1` or `+20`) that automatically clear after inactivity.
 
-### 3. Comprehensive Player Counters (`...` Modal)
-- **Commander Damage Matrix**: Track 21 lethal commander combat damage dealt to each player by every opponent, with an optional toggle to automatically deduct commander damage from total life.
+### 3. Dedicated Commander Damage Matrix (`Cmdr: X` Chip)
+- **Large Tactile Opponent Cards**: Generous 230×296px cards for each opponent in multiplayer games.
+- **Split-Card Touch Zones**: Tap left half of opponent card for `-1`, tap right half for `+1`.
+- **Quick Steppers & Reset**: Chunky `+5`, `-5`, and `Clear` buttons for rapid combat resolution.
+- **Lethal 21-Damage Gauge**: Visual progress bar toward 21 lethal damage with inverted black lethal banner alert.
+- **Auto-Deduct Toggle**: `[X] Deduct Life` toggle automatically reduces total life when taking commander damage.
+- **Quick Player Switching**: Switch between target players directly from bottom tabs without exiting the modal.
+
+### 4. Comprehensive Player Counters (`...` Modal)
 - **Poison Counters**: Tracks lethal infect/poison (10 threshold indicator).
 - **Commander Tax**: Tracks cast tax increments (+2 mana per cast).
 - **Energy Counters & Experience Points**: Individual energy and XP counters.
 - **Storm Counter**: Dedicated storm count tracker with 1-tap reset.
 - **Player Names**: Customizable player labels (Player 1–4, P1–P4, or commander color identities).
 
-### 4. Game Tools Modal (`🎲` Button)
+### 5. Game Tools Modal (`🎲` Button)
 - **Dice Roller**: D6 and D20 roll generators with history logs.
 - **Coin Flipper**: Heads / Tails generator with recent flip sequence.
 - **Monarch & Initiative**: Single-tap claim and crown indicators displayed directly on the winning player's card.
@@ -67,11 +74,12 @@ apps/spellcounter/
 ├── json.lua                   # Pure-Lua JSON serializer for SD storage
 ├── views/
 │   ├── grid.lua               # Player grid layouts (1P, 2P, 3P, 4P) and card rendering
-│   ├── player_modal.lua       # Player detail dialog (Cmdr damage, poison, storm, tax)
+│   ├── player_modal.lua       # Player detail dialog (Cmdr summary, poison, storm, tax)
+│   ├── cmdr_modal.lua         # Dedicated Commander Damage matrix dialog with large cards
 │   ├── tools_modal.lua        # Tools dialog (Dice roller, coin flip, monarch claim)
 │   ├── settings_modal.lua     # Settings dialog (Player count, starting life, sleep toggle)
 │   └── sleep_view.lua         # E-Ink sleep screen match summary renderer
-├── test_spellcounter.lua      # Comprehensive headless unit test suite (93 test cases)
+├── test_spellcounter.lua      # Comprehensive headless unit test suite (139 test cases)
 └── README.md                  # This documentation
 ```
 

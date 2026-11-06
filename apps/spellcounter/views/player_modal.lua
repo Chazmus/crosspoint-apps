@@ -112,6 +112,11 @@ function playerModal.draw(w, h, state, detailPlayer, linkCmdrDamage)
         end
     end
 
+    -- Dedicated Commander Damage Modal button
+    local fullGridW = 120
+    local fullGridX = mx + mw - fullGridW - 16
+    ui.drawButton(fullGridX, rowY - 2, fullGridW, 34, "Full Matrix...", ui.getFont("small"), ui.C_BLACK, false)
+
     -- Row 4: Commander Tax, Energy, Experience
     rowY = rowY + 44
     local pTax = safeNum(p.tax, 0)
@@ -159,7 +164,7 @@ function playerModal.draw(w, h, state, detailPlayer, linkCmdrDamage)
     end
 end
 
-function playerModal.handleTouch(x, y, w, h, state, detailPlayer, linkCmdrDamage, onClose, onToggleLink)
+function playerModal.handleTouch(x, y, w, h, state, detailPlayer, linkCmdrDamage, onClose, onToggleLink, onOpenCmdrModal)
     local dIdx = math.max(1, math.min(4, safeInt(detailPlayer, 1)))
     local p = stateEngine.ensurePlayer(state.players[dIdx], dIdx, state.startingLife or 40)
     state.players[dIdx] = p
@@ -216,7 +221,17 @@ function playerModal.handleTouch(x, y, w, h, state, detailPlayer, linkCmdrDamage
     -- Row 3: Commander Damage from opponents
     rowY = rowY + 44
     local pc = math.max(1, math.min(4, safeInt(state.playerCount, 4)))
-    if y >= rowY - 2 and y <= rowY + 32 then
+    if y >= rowY - 4 and y <= rowY + 34 then
+        -- Tap "Cmdr Damage:" label or "Full Matrix..." button opens dedicated view
+        local fullGridW = 120
+        local fullGridX = mx + mw - fullGridW - 16
+        if (x >= fullGridX and x <= fullGridX + fullGridW) or (x >= mx + 16 and x <= mx + 180) then
+            if onOpenCmdrModal then
+                onOpenCmdrModal()
+                return true
+            end
+        end
+
         local btnX = mx + 200
         for opp = 1, pc do
             if opp ~= p.id then

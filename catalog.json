@@ -63,7 +63,7 @@
     {
       "id": "spellcounter",
       "name": "Spell Counter",
-      "version": "1.0.8",
+      "version": "1.0.9",
       "author": "Chazmus",
       "description": "MTG life and counter tracker for up to 4 players",
       "icon": "Blocks",
@@ -78,6 +78,7 @@
         "json.lua",
         "views/grid.lua",
         "views/player_modal.lua",
+        "views/cmdr_modal.lua",
         "views/tools_modal.lua",
         "views/settings_modal.lua",
         "views/sleep_view.lua"

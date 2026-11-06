@@ -124,9 +124,9 @@ local function handleCardTouch(x, y, pc, rects, st)
                 end
                 cx = cx + pw + 8
 
-                local cw = 70
+                local cw = 76
                 if x >= cx and x <= cx + cw then
-                    modalManager.open("player_detail", i)
+                    modalManager.open("cmdr_damage", i)
                     return true
                 end
 

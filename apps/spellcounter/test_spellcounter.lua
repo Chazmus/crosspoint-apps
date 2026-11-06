@@ -245,7 +245,7 @@ end)
 
 -- 4. Modals Drawing Resilience
 run_test("test_modals_drawing", function()
-    local modals = {"tools", "player_detail", "reset", "player_count"}
+    local modals = {"tools", "player_detail", "cmdr_damage", "reset", "player_count"}
     for _, m in ipairs(modals) do
         ui.modal = m
         local ok, err = pcall(onDraw)
@@ -609,6 +609,88 @@ run_test("test_clockwise_player_layout", function()
     assert_true(targetP4 ~= nil, "Target for P4 left side exists")
     assert_eq(targetP4.playerIdx, 4, "Target player is 4 (Bottom-Left)")
     assert_eq(targetP4.deltaSign, -1, "Target delta is -1")
+end)
+
+-- 16. Dedicated Commander Damage Modal (Large Touch Controls) Tests
+run_test("test_cmdr_damage_modal", function()
+    local cmdrModule = require("views.cmdr_modal")
+    sc.stateEngine.initNewGame(40, 4)
+    ui.modal = nil
+    ui.detailPlayer = 1
+
+    -- 1. Open dedicated commander damage modal by tapping Cmdr chip on P1 card
+    -- P1 card is at (8, 44, 390, 212). Bottom strip starts at y = 44 + 212 - 38 = 218.
+    -- Poison chip is x=20..84. Cmdr chip is x=92..168.
+    onTouch(120, 225)
+    assert_eq(ui.modal, "cmdr_damage", "Cmdr chip opened cmdr_damage modal")
+    assert_eq(ui.detailPlayer, 1, "Detail player is P1")
+
+    -- 2. Verify opponent cards geometry
+    local cardRects, opponents = cmdrModule.getOpponentCardRects(20, 20, 760, 440, 4, 1)
+    assert_eq(#opponents, 3, "3 opponents for P1 in 4-player game")
+    assert_eq(#cardRects, 3, "3 opponent cards generated")
+    local c1 = cardRects[1] -- Opponent 2
+    assert_eq(c1.opp, 2, "Card 1 belongs to opponent 2")
+    assert_true(c1.w >= 200, "Opponent card width is large (>= 200px)")
+    assert_true(c1.h >= 250, "Opponent card height is large (>= 250px)")
+
+    -- 3. Tap right half of Opponent 2 card -> +1 Commander Damage
+    local p1LifeBefore = state.players[1].life
+    onTouch(c1.x + math.floor(c1.w * 0.75), c1.y + 100)
+    assert_eq(state.players[1].cmdrDmg[2], 1, "P1 commander damage from P2 increased to 1")
+    assert_eq(state.players[1].life, p1LifeBefore - 1, "P1 life auto-deducted by 1")
+
+    -- 4. Tap +5 quick button -> +5 Commander Damage
+    local qW = math.floor((c1.w - 32) / 3)
+    local plus5X = c1.x + 10 + qW + 8
+    local qY = c1.y + 250
+    onTouch(plus5X, qY)
+    assert_eq(state.players[1].cmdrDmg[2], 6, "P1 commander damage from P2 increased by 5 (total 6)")
+    assert_eq(state.players[1].life, p1LifeBefore - 6, "P1 life auto-deducted by 6")
+
+    -- 5. Tap -5 quick button -> -5 Commander Damage
+    local minus5X = c1.x + 15
+    onTouch(minus5X, qY)
+    assert_eq(state.players[1].cmdrDmg[2], 1, "P1 commander damage from P2 decreased by 5 (total 1)")
+    assert_eq(state.players[1].life, p1LifeBefore - 1, "P1 life refunded by 5")
+
+    -- 6. Tap left half of Opponent 2 card -> -1 Commander Damage
+    onTouch(c1.x + 20, c1.y + 100)
+    assert_eq(state.players[1].cmdrDmg[2], 0, "P1 commander damage from P2 returned to 0")
+    assert_eq(state.players[1].life, p1LifeBefore, "P1 life fully restored")
+
+    -- 7. Lethal threshold (21) rendering & Clear button
+    sc.stateEngine.changeCmdrDamage(1, 2, 21, true)
+    assert_eq(state.players[1].cmdrDmg[2], 21, "P1 took 21 commander damage (lethal)")
+    assert_eq(state.players[1].life, p1LifeBefore - 21, "P1 life reduced by 21")
+    local ok, err = pcall(onDraw)
+    assert_true(ok, "onDraw survived lethal commander damage display: " .. tostring(err))
+
+    -- Tap Clear button
+    local clearX = c1.x + c1.w - 15
+    onTouch(clearX, qY)
+    assert_eq(state.players[1].cmdrDmg[2], 0, "Commander damage cleared to 0")
+    assert_eq(state.players[1].life, p1LifeBefore, "Life restored after clearing damage")
+
+    -- 8. Switch Target Player via bottom tab (select P3)
+    -- Target tabs start at mx + 130 = 150. P1: 150..220, P2: 228..298, P3: 306..376
+    local bottomY = 20 + 440 - 35
+    onTouch(330, bottomY)
+    assert_eq(ui.detailPlayer, 3, "Switched detail player to P3 via bottom tab")
+
+    -- 9. Navigate to player_detail via bottom right button
+    -- Detail button is at mx + mw - 150 - 16 = 20 + 760 - 166 = 614..764
+    onTouch(680, bottomY)
+    assert_eq(ui.modal, "player_detail", "Switched to player_detail modal")
+
+    -- 10. Navigate back to cmdr_damage via Full Matrix button in player_detail
+    -- In player_detail, Full Matrix button is at mx + mw - 140 - 16 = 60 + 680 - 156 = 584..704, rowY = ~167
+    onTouch(620, 167)
+    assert_eq(ui.modal, "cmdr_damage", "Returned to cmdr_damage via player_detail")
+
+    -- 11. Close modal with onBack
+    onBack()
+    assert_eq(ui.modal, nil, "Modal closed via hardware Back button")
 end)
 
 -- ---------------------------------------------------------------------------
