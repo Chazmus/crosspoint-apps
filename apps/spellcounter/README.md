@@ -4,7 +4,7 @@ A feature-rich Magic: The Gathering (MTG) life and counter tracking application 
 
 ![Category](https://img.shields.io/badge/Category-Games%20%26%20Utilities-blue)
 ![Orientation](https://img.shields.io/badge/Orientation-Landscape%20(800x480)-green)
-![Version](https://img.shields.io/badge/Version-1.0.7-orange)
+![Version](https://img.shields.io/badge/Version-1.0.8-orange)
 
 ---
 

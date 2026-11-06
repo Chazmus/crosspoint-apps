@@ -55,10 +55,12 @@ function grid.getCardRects(w, h, count)
     else
         local colW = math.floor((w - 20) / 2)
         local rowH = math.floor((availH - 18) / 2)
+        -- Clockwise order around the game board:
+        -- P1: Top-Left, P2: Top-Right, P3: Bottom-Right, P4: Bottom-Left
         rects[1] = {x = 8, y = headerH + 6, w = colW, h = rowH}
         rects[2] = {x = 12 + colW, y = headerH + 6, w = colW, h = rowH}
-        rects[3] = {x = 8, y = headerH + 12 + rowH, w = colW, h = rowH}
-        rects[4] = {x = 12 + colW, y = headerH + 12 + rowH, w = colW, h = rowH}
+        rects[3] = {x = 12 + colW, y = headerH + 12 + rowH, w = colW, h = rowH}
+        rects[4] = {x = 8, y = headerH + 12 + rowH, w = colW, h = rowH}
     end
 
     return rects, headerH

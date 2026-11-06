@@ -477,6 +477,8 @@ end)
 
 -- 13. Enlarged Card Menu Button (...) Hitbox Tests
 run_test("test_menu_button_hitbox", function()
+    sc.stateEngine.initNewGame(40, 4)
+    ui.modal = nil
     local gridModule = require("views.grid")
     local rects = gridModule.getCardRects(800, 480, 4)
     local r1 = rects[1]
@@ -552,6 +554,61 @@ run_test("test_modular_managers", function()
     hh.holdState.hasTicked = true
     assert_eq(hh.wasTapSuppressed(), true, "hold_handler wasTapSuppressed true after tick")
     assert_eq(hh.wasTapSuppressed(), false, "hold_handler wasTapSuppressed resets after check")
+end)
+
+-- 15. Clockwise Player Grid Layout Tests (4-Player Table Flow)
+run_test("test_clockwise_player_layout", function()
+    local gridModule = require("views.grid")
+    local hh = require("hold_handler")
+    local rects, headerH = gridModule.getCardRects(800, 480, 4)
+
+    assert_eq(#rects, 4, "4 card rects returned")
+    local r1, r2, r3, r4 = rects[1], rects[2], rects[3], rects[4]
+
+    -- Geometry verification: Clockwise flow around the game board
+    -- P1: Top-Left
+    -- P2: Top-Right (same Y as P1, X to the right)
+    -- P3: Bottom-Right (same X as P2, Y below P2)
+    -- P4: Bottom-Left (same X as P1, same Y as P3)
+    assert_true(r1.x < r2.x, "P1 is to the left of P2")
+    assert_eq(r1.y, r2.y, "P1 and P2 share the top row Y")
+
+    assert_eq(r3.x, r2.x, "P3 shares the right column X with P2")
+    assert_true(r3.y > r2.y, "P3 is below P2 (Bottom-Right)")
+
+    assert_eq(r4.x, r1.x, "P4 shares the left column X with P1 (Bottom-Left)")
+    assert_eq(r4.y, r3.y, "P4 shares the bottom row Y with P3")
+
+    -- Interactive touch verification with state reset to 4 players
+    sc.stateEngine.initNewGame(40, 4)
+    ui.modal = nil
+
+    -- 1. Tap P3 (Bottom-Right) left side -> P3 life -1
+    local p3LifeBefore = state.players[3].life
+    onTouch(r3.x + 20, r3.y + math.floor(r3.h / 2))
+    assert_eq(state.players[3].life, p3LifeBefore - 1, "P3 (Bottom-Right) life decreased by 1 on tap")
+    assert_eq(state.players[1].life, 40, "P1 life unaffected")
+    assert_eq(state.players[2].life, 40, "P2 life unaffected")
+    assert_eq(state.players[4].life, 40, "P4 life unaffected")
+
+    -- 2. Tap P4 (Bottom-Left) right side -> P4 life +1
+    local p4LifeBefore = state.players[4].life
+    onTouch(r4.x + r4.w - 20, r4.y + math.floor(r4.h / 2))
+    assert_eq(state.players[4].life, p4LifeBefore + 1, "P4 (Bottom-Left) life increased by 1 on tap")
+    assert_eq(state.players[1].life, 40, "P1 life unaffected")
+    assert_eq(state.players[2].life, 40, "P2 life unaffected")
+    assert_eq(state.players[3].life, p3LifeBefore - 1, "P3 life unaffected")
+
+    -- 3. Hold handler targeting verification for P3 and P4
+    local targetP3 = hh.getTarget(r3.x + r3.w - 20, r3.y + math.floor(r3.h / 2), 800, 480, state)
+    assert_true(targetP3 ~= nil, "Target for P3 right side exists")
+    assert_eq(targetP3.playerIdx, 3, "Target player is 3 (Bottom-Right)")
+    assert_eq(targetP3.deltaSign, 1, "Target delta is +1")
+
+    local targetP4 = hh.getTarget(r4.x + 20, r4.y + math.floor(r4.h / 2), 800, 480, state)
+    assert_true(targetP4 ~= nil, "Target for P4 left side exists")
+    assert_eq(targetP4.playerIdx, 4, "Target player is 4 (Bottom-Left)")
+    assert_eq(targetP4.deltaSign, -1, "Target delta is -1")
 end)
 
 -- ---------------------------------------------------------------------------

@@ -50,8 +50,22 @@ function sleepView.draw(w, h, state)
 
     for i = 1, count do
         local p = stateEngine.ensurePlayer(state.players[i], i, state.startingLife)
-        local cCol = ((i - 1) % 2)
-        local cRow = math.floor((i - 1) / 2)
+        local cCol, cRow
+        if count == 4 then
+            -- Clockwise order around the board: P1 Top-Left, P2 Top-Right, P3 Bottom-Right, P4 Bottom-Left
+            if i == 1 then
+                cCol, cRow = 0, 0
+            elseif i == 2 then
+                cCol, cRow = 1, 0
+            elseif i == 3 then
+                cCol, cRow = 1, 1
+            else
+                cCol, cRow = 0, 1
+            end
+        else
+            cCol = ((i - 1) % 2)
+            cRow = math.floor((i - 1) / 2)
+        end
         local px = 8 + cCol * (colW + 8)
         local py = availY + cRow * (rowH + 8)
 
